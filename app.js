@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.0.26-fix-logo-vercel';
-const VERSION_LABEL = 'v1.0.26';
-const VERSION_CHANGE = 'Correção do deploy na Vercel: o build agora copia os arquivos PNG da marca para a pasta dist, resolvendo o 404 do brand-logo-header.png.';
+const VERSION = '1.0.27-bandeiras-imagem';
+const VERSION_LABEL = 'v1.0.27';
+const VERSION_CHANGE = 'Bandeiras trocadas de emojis para imagens SVG padronizadas em todas as seleções, corrigindo Inglaterra/Escócia e deixando o visual consistente entre navegadores.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -64,7 +64,15 @@ function extras(item){ return Math.max(qty(item.id)-1, 0); }
 function statusOf(item){ const q = qty(item.id); if(q <= 0) return 'missing'; if(q === 1) return 'owned'; return 'duplicate'; }
 function statusLabel(item){ const s = statusOf(item); return s === 'missing' ? 'Falta' : s === 'owned' ? 'Tenho' : `Repetida +${extras(item)}`; }
 function initials(text, fallback){ return String(text || fallback || '').split(/\s+|\/+|-+/).filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase() || '★'; }
-function flagEmoji(code){ const flags={MEX:'🇲🇽',RSA:'🇿🇦',KOR:'🇰🇷',CZE:'🇨🇿',CAN:'🇨🇦',BIH:'🇧🇦',QAT:'🇶🇦',SUI:'🇨🇭',BRA:'🇧🇷',MAR:'🇲🇦',HAI:'🇭🇹',SCO:'🏴',USA:'🇺🇸',PAR:'🇵🇾',AUS:'🇦🇺',TUR:'🇹🇷',GER:'🇩🇪',CUW:'🇨🇼',CIV:'🇨🇮',ECU:'🇪🇨',NED:'🇳🇱',JPN:'🇯🇵',SWE:'🇸🇪',TUN:'🇹🇳',BEL:'🇧🇪',EGY:'🇪🇬',IRN:'🇮🇷',NZL:'🇳🇿',ESP:'🇪🇸',CPV:'🇨🇻',KSA:'🇸🇦',URU:'🇺🇾',FRA:'🇫🇷',SEN:'🇸🇳',IRQ:'🇮🇶',NOR:'🇳🇴',ARG:'🇦🇷',ALG:'🇩🇿',AUT:'🇦🇹',JOR:'🇯🇴',POR:'🇵🇹',COD:'🇨🇩',UZB:'🇺🇿',COL:'🇨🇴',ENG:'🏴',CRO:'🇭🇷',GHA:'🇬🇭',PAN:'🇵🇦'}; return flags[code] || ''; }
+function flagEmoji(code){ return ''; }
+function flagImg(code, label=''){
+  if(!code) return '';
+  const src = `./flags/${String(code).toLowerCase()}.svg`;
+  return `<img class="flag-img" src="${src}" alt="${escapeAttr(label || code)}" loading="lazy" decoding="async">`;
+}
+function flagMark(code, label=''){
+  return flagImg(code, label) || escapeHtml(code || '');
+}
 function loadOpenSections(){
   try{
     const saved = JSON.parse(localStorage.getItem(OPEN_SECTIONS_KEY) || '[]');
@@ -397,7 +405,7 @@ function renderTeamList(){
 
     cards.push(`<article class="team-card album-page ${st.progress===1?'complete':''} ${isOpen?'open':''}" data-section="${escapeAttr(key)}">
       <button class="team-head team-toggle" type="button" data-section-toggle="${escapeAttr(key)}" aria-expanded="${isOpen ? 'true':'false'}">
-        <div class="team-badge">${flagEmoji(sec.code) || escapeHtml(codeOf(sec)).slice(0,2)}</div>
+        <div class="team-badge">${flagMark(sec.code, sec.name) || escapeHtml(codeOf(sec)).slice(0,2)}</div>
         <div>
           <h3>${escapeHtml(codeOf(sec))} · ${escapeHtml(sec.name)}</h3>
           <p>${groupLabel} · ${st.owned}/${st.total} · ${st.missing} faltam · ${st.duplicates} repetidas</p>
@@ -462,7 +470,7 @@ function renderTeamList(){
   bindStickerActions(container);
 }
 function stickerCard(item){
-  const q = qty(item.id); const s = statusOf(item); const name = stickerDisplayName(item); const meta = stickerDisplayMeta(item); const special = item.type === 'especial' || item.type === 'history' || item.type === 'coca-cola'; const shield = item.type === 'escudo'; const n = String(item.number).padStart(2,'0'); const badge = (!special && flagEmoji(item.code)) ? flagEmoji(item.code) : initials(name, item.code);
+  const q = qty(item.id); const s = statusOf(item); const name = stickerDisplayName(item); const meta = stickerDisplayMeta(item); const special = item.type === 'especial' || item.type === 'history' || item.type === 'coca-cola'; const shield = item.type === 'escudo'; const n = String(item.number).padStart(2,'0'); const badge = (!special && item.code) ? flagMark(item.code, item.section) : escapeHtml(initials(name, item.code));
   return `<div class="sticker ${s} ${special?'special':''} ${shield?'shield':''}"><button class="sticker-main" data-toggle="${item.id}" aria-label="${escapeAttr(item.ref)} ${escapeAttr(name)}"><span class="status ${s}">${s==='missing'?'FALTA':s==='owned'?'TENHO':`REP +${extras(item)}`}</span><span class="sticker-face"><span class="sticker-top"><span class="code">${escapeHtml(codeOf(item))}</span><span class="num">${escapeHtml(n)}</span></span><span class="art"><span class="emblem">${special?'★':badge}</span></span><span class="sticker-info"><strong class="sticker-name">${escapeHtml(name)}</strong><span class="sticker-meta">${escapeHtml(meta)}</span></span></span></button><div class="qty"><button class="qty-btn" data-dec="${item.id}">−</button><b>${q}</b><button class="qty-btn" data-inc="${item.id}">+</button></div></div>`;
 }
 function bindStickerActions(ctx=document){ $$('[data-inc]',ctx).forEach(b=>b.addEventListener('click',()=>addQty(b.dataset.inc,1))); $$('[data-dec]',ctx).forEach(b=>b.addEventListener('click',()=>addQty(b.dataset.dec,-1))); $$('[data-toggle]',ctx).forEach(b=>b.addEventListener('click',()=>quickToggle(b.dataset.toggle))); }

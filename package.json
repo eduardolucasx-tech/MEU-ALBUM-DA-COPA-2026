@@ -2,7 +2,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "start": "vite --host 0.0.0.0",
-    "build": "rm -rf dist && mkdir -p dist && cp index.html styles.css app.js data.js firebase-config.js service-worker.js manifest.webmanifest icon.svg brand-logo.png brand-logo-header.png brand-logo-full.png dist/",
+    "build": "rm -rf dist && mkdir -p dist && cp index.html styles.css app.js data.js firebase-config.js service-worker.js manifest.webmanifest icon.svg brand-logo.png brand-logo-header.png brand-logo-full.png dist/ && cp -r flags dist/",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

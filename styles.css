@@ -821,3 +821,28 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .trade-control-card{
   overflow:hidden;
 }
+
+
+/* v1.0.27 - bandeiras em imagem */
+.flag-img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  border-radius:inherit;
+}
+.team-badge{
+  overflow:hidden;
+  padding:2px;
+  background:rgba(255,255,255,.06);
+}
+.team-badge .flag-img{
+  border-radius:13px;
+}
+.emblem{
+  overflow:hidden;
+  padding:3px;
+}
+.emblem .flag-img{
+  border-radius:50%;
+}
