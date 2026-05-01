@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.1.4-saudacao-google';
-const VERSION_LABEL = 'v1.1.4';
-const VERSION_CHANGE = 'Saudação personalizada na Home: com Google conectado, o app usa o primeiro nome da conta e sorteia uma frase; sem nome ou sem login, mostra Gaijin na área...';
+const VERSION = '1.1.5-saudacoes-narracao';
+const VERSION_LABEL = 'v1.1.5';
+const VERSION_CHANGE = 'Saudações da Home ampliadas com frases inspiradas em narrações de futebol e bordões de Copa, personalizadas com o primeiro nome da conta Google.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -40,27 +40,101 @@ const itemMap = new Map(albumItems.map(i => [i.id, i]));
 
 let state = loadState();
 let currentView = 'home';
-let homeGreetingIndex = Math.floor(Math.random() * 8);
+let homeGreetingIndex = Math.floor(Math.random() * 68);
 const HOME_GREETINGS = [
-  'Coé, {name}!',
-  'Salve, {name}!',
-  'E aí, {name}!',
-  'Bora, {name}!',
-  'Chegou, {name}!',
-  'Fala, {name}!',
-  'Partiu álbum, {name}!',
-  'Tá na área, {name}!'
+  'Coé',
+  'Salve',
+  'E aí',
+  'Bora',
+  'Chegou',
+  'Fala',
+  'Partiu álbum',
+  'Tá na área',
+  'É tetra',
+  'Vai que é tua, {name}!',
+  'Olha o que ele fez',
+  'Haja coração',
+  'Bem, amigos',
+  'Pode isso, {name}?',
+  'A regra é clara',
+  'No peito, na grama!',
+  'Que beleza',
+  'Explode coração',
+  'Gooooool do Brasil',
+  'O Brasil está na final',
+  'Acabou! É campeão',
+  'É do Brasil',
+  'Sabe de quem',
+  'Gol de placa',
+  'Pintou o campeão',
+  'É teste pra cardíaco',
+  'Que golaço',
+  'Ele não perdoa',
+  'Tá lá dentro',
+  'Balançou o barbante',
+  'A bola pune',
+  'Quem não faz, toma',
+  'O impossível aconteceu',
+  'Senhoras e senhores, que jogo!',
+  'É Copa do Mundo, amigo!',
+  'Com emoção',
+  'A bola viaja',
+  'Subiu mais que todo mundo',
+  'Defesaça',
+  'Milagre do goleiro',
+  'Na trave',
+  'Por centímetros',
+  'O estádio vem abaixo',
+  'É decisão',
+  'Agora é matar ou morrer',
+  'Drama total',
+  'É loteria',
+  'Ele chamou a responsabilidade',
+  'O camisa 10 resolveu',
+  'Craque é craque',
+  'Isso é futebol',
+  'O futebol é maravilhoso',
+  'Histórico',
+  'Inacreditável',
+  'É pra guardar na memória',
+  'Nunca duvide do futebol',
+  'A taça é deles',
+  'Pode soltar o grito',
+  'Haja figurinha',
+  'É tetra de repetida',
+  'Vai que é tua, colecionador',
+  'A regra é clara: repetida vai pra troca',
+  'Tá lá dentro do álbum',
+  'Quem não cola, troca',
+  'Balançou o pacotinho',
+  'O álbum pune',
+  'Drama total na última faltante',
+  'Acabou! É álbum fechado',
+  '{name}! Sentiu!'
 ];
+const HOME_GREETINGS_EXACT = new Set([
+  'Pode isso, {name}?',
+  'Vai que é tua, {name}!',
+  'No peito, na grama!',
+  'Senhoras e senhores, que jogo!',
+  'É Copa do Mundo, amigo!',
+  '{name}! Sentiu!'
+]);
 function firstNameFromGoogle(){
   const raw = cloud.user?.displayName || '';
   const first = raw.trim().split(/\s+/)[0] || '';
   return first;
 }
+function formatHomeGreeting(template, name){
+  const resolved = template.replaceAll('{name}', name);
+  if(HOME_GREETINGS_EXACT.has(template)) return resolved;
+  return `${resolved.replace(/[.!?…]+$/g, '').trim()}, ${name}!`;
+}
 function homeTitle(){
   const name = firstNameFromGoogle();
   if(!name) return 'Gaijin na área...';
   const template = HOME_GREETINGS[homeGreetingIndex % HOME_GREETINGS.length];
-  return template.replace('{name}', name);
+  return formatHomeGreeting(template, name);
 }
 let cloud = { ready:false, auth:null, db:null, provider:null, user:null, loading:false };
 let syncTimer = null;
