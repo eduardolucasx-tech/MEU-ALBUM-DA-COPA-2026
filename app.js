@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.1.1-frase-sobre';
-const VERSION_LABEL = 'v1.1.1';
-const VERSION_CHANGE = 'Ajuste de texto na seção Sobre, com frase personalizada de autoria do Lucas Viveiros.';
+const VERSION = '1.1.4-saudacao-google';
+const VERSION_LABEL = 'v1.1.4';
+const VERSION_CHANGE = 'Saudação personalizada na Home: com Google conectado, o app usa o primeiro nome da conta e sorteia uma frase; sem nome ou sem login, mostra Gaijin na área...';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -40,6 +40,28 @@ const itemMap = new Map(albumItems.map(i => [i.id, i]));
 
 let state = loadState();
 let currentView = 'home';
+let homeGreetingIndex = Math.floor(Math.random() * 8);
+const HOME_GREETINGS = [
+  'Coé, {name}!',
+  'Salve, {name}!',
+  'E aí, {name}!',
+  'Bora, {name}!',
+  'Chegou, {name}!',
+  'Fala, {name}!',
+  'Partiu álbum, {name}!',
+  'Tá na área, {name}!'
+];
+function firstNameFromGoogle(){
+  const raw = cloud.user?.displayName || '';
+  const first = raw.trim().split(/\s+/)[0] || '';
+  return first;
+}
+function homeTitle(){
+  const name = firstNameFromGoogle();
+  if(!name) return 'Gaijin na área...';
+  const template = HOME_GREETINGS[homeGreetingIndex % HOME_GREETINGS.length];
+  return template.replace('{name}', name);
+}
 let cloud = { ready:false, auth:null, db:null, provider:null, user:null, loading:false };
 let syncTimer = null;
 let cloudUnsubscribe = null;
@@ -237,7 +259,7 @@ function setView(view){
   currentView = view;
   $$('.view').forEach(v => v.classList.toggle('active', v.id === `view-${view}`));
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
-  $('#viewTitle').textContent = ({home:'Início', album:'Álbum', quick:'Visual rápido', add:'Adicionar', trades:'Trocas', missing:'Faltantes', profile:'Perfil'})[view] || 'Meu Álbum';
+  $('#viewTitle').textContent = view === 'home' ? homeTitle() : (({album:'Álbum', quick:'Visual rápido', add:'Adicionar', trades:'Trocas', missing:'Faltantes', profile:'Perfil'})[view] || 'Meu Álbum');
   render();
 }
 function render(){
@@ -316,7 +338,7 @@ function renderHome(){
     <section class="card">
       <span class="label">Filtros do álbum</span>
       <div class="filters">
-        <input id="albumSearch" class="search" type="search" placeholder="Buscar: BRA 10, Brasil, Neymar, falta...">
+        <input id="albumSearch" class="search" type="search" placeholder="Buscar: BRA 10, Brasil, Vini Jr, falta...">
         <select id="groupFilter">
           <option value="">Todos os grupos</option>
           ${groups.map(g=>`<option value="${g}">Grupo ${g}</option>`).join('')}
@@ -850,6 +872,7 @@ function initCloud(){
         startRealtimeSync();
       }
       render();
+      if(currentView === 'home') $('#viewTitle').textContent = homeTitle();
     });
   }catch(e){
     console.warn('Firebase indisponível', e);

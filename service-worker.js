@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-1-1-frase-sobre';
+const CACHE='meu-album-copa-v1-1-4-saudacao-google';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',
