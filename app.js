@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.0.30-lembrete-google';
-const VERSION_LABEL = 'v1.0.30';
-const VERSION_CHANGE = 'Adicionado lembrete de conexão com Google: sempre que o app abrir em modo local, a Home mostra um aviso destacado para conectar e sincronizar na nuvem.';
+const VERSION = '1.0.31-sync-tempo-real';
+const VERSION_LABEL = 'v1.0.31';
+const VERSION_CHANGE = 'Sincronização em tempo real restaurada: quando a mesma conta Google altera o álbum em outro dispositivo, o app recebe a atualização automaticamente pela nuvem.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -42,6 +42,8 @@ let state = loadState();
 let currentView = 'home';
 let cloud = { ready:false, auth:null, db:null, provider:null, user:null, loading:false };
 let syncTimer = null;
+let cloudUnsubscribe = null;
+let applyingRemoteState = false;
 let packSession = [];
 let albumSortMode = localStorage.getItem('meu-album-copa-sort-mode') || 'album';
 const openSections = new Set(loadOpenSections());
@@ -95,7 +97,7 @@ function ensureDefaultOpenSections(sections){
 function onboardingSeen(){ return localStorage.getItem(ONBOARDING_KEY) === '1'; }
 function markOnboardingSeen(){ localStorage.setItem(ONBOARDING_KEY, '1'); }
 function syncLabel(){ return cloud.user ? 'Google conectado' : 'Modo local'; }
-function syncHint(){ return cloud.user ? 'Sincronização em nuvem ativa' : 'Seus dados estão salvos neste aparelho'; }
+function syncHint(){ return cloud.user ? 'Sincronização em tempo real ativa' : 'Seus dados estão salvos neste aparelho'; }
 function googleReminderCard(){
   if(cloud.user) return '';
   return `<section class="card google-reminder-card">
@@ -603,10 +605,65 @@ function exportJson(){ const blob = new Blob([JSON.stringify(state,null,2)],{typ
 async function importJson(e){ const file=e.target.files?.[0]; if(!file) return; try{ state=normalizeState(JSON.parse(await file.text())); saveState('Backup importado'); render(); toast('Backup importado.'); }catch(err){ toast('Arquivo inválido.'); } }
 function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2200); }
 
-function initCloud(){ const cfg=window.FIREBASE_CONFIG; if(!cfg || !cfg.apiKey || !window.firebase) return; try{ if(!firebase.apps.length) firebase.initializeApp(cfg); cloud.auth=firebase.auth(); cloud.db=firebase.firestore(); cloud.provider=new firebase.auth.GoogleAuthProvider(); cloud.ready=true; cloud.auth.onAuthStateChanged(async user=>{ cloud.user=user; if(user) await loadCloud(true); if(currentView==='profile' || currentView==='home') render(); }); }catch(e){ console.warn('Firebase indisponível', e); } }
+function initCloud(){
+  const cfg=window.FIREBASE_CONFIG;
+  if(!cfg || !cfg.apiKey || !window.firebase) return;
+  try{
+    if(!firebase.apps.length) firebase.initializeApp(cfg);
+    cloud.auth=firebase.auth();
+    cloud.db=firebase.firestore();
+    cloud.provider=new firebase.auth.GoogleAuthProvider();
+    cloud.ready=true;
+    cloud.auth.onAuthStateChanged(async user=>{
+      if(cloudUnsubscribe){
+        cloudUnsubscribe();
+        cloudUnsubscribe = null;
+      }
+      cloud.user=user;
+      if(user){
+        await loadCloud(true);
+        startRealtimeSync();
+      }
+      render();
+    });
+  }catch(e){
+    console.warn('Firebase indisponível', e);
+  }
+}
+function startRealtimeSync(){
+  if(!cloud.ready || !cloud.user || !cloud.db) return;
+  if(cloudUnsubscribe) cloudUnsubscribe();
+
+  cloudUnsubscribe = cloudDoc().onSnapshot(snap => {
+    if(!snap.exists || !snap.data().state) return;
+
+    const remote = normalizeState(snap.data().state);
+    const localTime = Date.parse(state.updatedAt || 0);
+    const remoteTime = Date.parse(remote.updatedAt || 0);
+
+    if(remoteTime > localTime){
+      applyingRemoteState = true;
+      state = remote;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      applyingRemoteState = false;
+      render();
+      toast('Álbum atualizado pela nuvem.');
+    }
+  }, err => {
+    console.warn('realtime sync failed', err);
+  });
+}
 function cloudDoc(){ return cloud.db.collection(CLOUD_COLLECTION).doc(cloud.user.uid); }
 async function signInCloud(){ if(!cloud.ready) return toast('Firebase não configurado.'); try{ await cloud.auth.signInWithPopup(cloud.provider); }catch(e){ toast('Não consegui entrar com Google.'); } }
-async function signOutCloud(){ if(cloud.auth) await cloud.auth.signOut(); toast('Conta desconectada.'); render(); }
+async function signOutCloud(){
+  if(cloudUnsubscribe){
+    cloudUnsubscribe();
+    cloudUnsubscribe = null;
+  }
+  if(cloud.auth) await cloud.auth.signOut();
+  toast('Conta desconectada.');
+  render();
+}
 function queueCloudSave(){ if(!cloud.ready || !cloud.user) return; clearTimeout(syncTimer); syncTimer=setTimeout(()=>saveCloud(),700); }
 async function saveCloud(){ if(!cloud.ready || !cloud.user) return; try{ await cloudDoc().set({state, updatedAt:firebase.firestore.FieldValue.serverTimestamp(), version:VERSION},{merge:true}); }catch(e){ console.warn('save cloud failed', e); } }
 async function loadCloud(silent=false){ if(!cloud.ready || !cloud.user) return; try{ const snap=await cloudDoc().get(); if(snap.exists && snap.data().state){ const remote=normalizeState(snap.data().state); const localTime=Date.parse(state.updatedAt||0); const remoteTime=Date.parse(remote.updatedAt||0); if(remoteTime>localTime){ state=remote; localStorage.setItem(STORAGE_KEY,JSON.stringify(state)); if(!silent) toast('Nuvem carregada.'); render(); } else { await saveCloud(); } } else { await saveCloud(); } }catch(e){ console.warn('load cloud failed', e); if(!silent) toast('Falha na sincronização.'); } }
