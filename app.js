@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.0.25-firebase-configurado';
-const VERSION_LABEL = 'v1.0.25';
-const VERSION_CHANGE = 'Firebase configurado no arquivo firebase-config.js para o projeto figurinhas-mundial, pronto para subir no GitHub/Vercel.';
+const VERSION = '1.0.26-fix-logo-vercel';
+const VERSION_LABEL = 'v1.0.26';
+const VERSION_CHANGE = 'Correção do deploy na Vercel: o build agora copia os arquivos PNG da marca para a pasta dist, resolvendo o 404 do brand-logo-header.png.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
