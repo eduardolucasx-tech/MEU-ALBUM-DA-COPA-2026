@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-0-29-nav-add';
+const CACHE='meu-album-copa-v1-0-30-lembrete-google';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',

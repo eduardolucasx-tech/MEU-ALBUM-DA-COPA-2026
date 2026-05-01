@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.0.29-nav-add-padronizado';
-const VERSION_LABEL = 'v1.0.29';
-const VERSION_CHANGE = 'Botão Adicionar padronizado com os demais itens da barra inferior, seguindo o mesmo estilo visual e comportamento de ativo.';
+const VERSION = '1.0.30-lembrete-google';
+const VERSION_LABEL = 'v1.0.30';
+const VERSION_CHANGE = 'Adicionado lembrete de conexão com Google: sempre que o app abrir em modo local, a Home mostra um aviso destacado para conectar e sincronizar na nuvem.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -96,6 +96,15 @@ function onboardingSeen(){ return localStorage.getItem(ONBOARDING_KEY) === '1'; 
 function markOnboardingSeen(){ localStorage.setItem(ONBOARDING_KEY, '1'); }
 function syncLabel(){ return cloud.user ? 'Google conectado' : 'Modo local'; }
 function syncHint(){ return cloud.user ? 'Sincronização em nuvem ativa' : 'Seus dados estão salvos neste aparelho'; }
+function googleReminderCard(){
+  if(cloud.user) return '';
+  return `<section class="card google-reminder-card">
+    <span class="label">Lembrete importante</span>
+    <h3>Conecte com Google para salvar na nuvem</h3>
+    <p class="muted">Antes de marcar muitas figurinhas, entre com Google. Assim o álbum fica protegido se trocar de celular, limpar cache ou abrir em outro navegador.</p>
+    <button id="homeGoogleLogin" class="btn primary full">Conectar com Google</button>
+  </section>`;
+}
 function formatUpdatedAt(v){
   const d = new Date(v || Date.now());
   if(Number.isNaN(d.getTime())) return 'agora';
@@ -279,6 +288,8 @@ function renderHome(){
       <div class="status-subline">Última atualização local: ${escapeHtml(formatUpdatedAt(state.updatedAt))}</div>
     </section>
 
+    ${googleReminderCard()}
+
     <section class="grid kpis home-kpis">
       ${kpiAction('Tenho', s.owned, 'owned')}
       ${kpiAction('Faltam', s.missing, 'missing')}
@@ -344,6 +355,7 @@ function renderHome(){
     renderTeamList();
     $('#teamList')?.scrollIntoView({behavior:'smooth', block:'start'});
   }));
+  $('#homeGoogleLogin')?.addEventListener('click', signInCloud);
   $('#sortModeBtn')?.addEventListener('click', () => {
     albumSortMode = albumSortMode === 'album' ? 'alpha' : 'album';
     localStorage.setItem('meu-album-copa-sort-mode', albumSortMode);
@@ -617,3 +629,6 @@ $('#syncButton').addEventListener('click',syncNow);
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
 initCloud();
 render();
+setTimeout(() => {
+  if(!cloud.user && currentView === 'home') toast('Lembrete: conecte com Google para salvar na nuvem.');
+}, 1600);

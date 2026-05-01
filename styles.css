@@ -860,3 +860,19 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
   border-color:rgba(214,175,82,.35);
   background:rgba(214,175,82,.09);
 }
+
+
+/* v1.0.30 - lembrete de conexão Google */
+.google-reminder-card{
+  background:
+    linear-gradient(160deg,rgba(141,183,255,.12),rgba(214,175,82,.08)),
+    linear-gradient(180deg,rgba(24,25,29,.98),rgba(12,13,15,.98));
+  border-color:rgba(141,183,255,.22);
+}
+.google-reminder-card h3{
+  margin:0 0 8px;
+  font-size:1.08rem;
+}
+.google-reminder-card .btn{
+  margin-top:12px;
+}
