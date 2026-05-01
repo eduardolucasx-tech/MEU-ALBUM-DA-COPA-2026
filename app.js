@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.1.0-uso-real';
-const VERSION_LABEL = 'v1.1.0';
-const VERSION_CHANGE = 'Versão de uso real: entrada em lote, desfazer última ação, modo pacotinho melhorado, Visual rápido com filtros, Trocas em cards no mobile, listas de WhatsApp mais bonitas e estatísticas dentro do Perfil.';
+const VERSION = '1.1.1-frase-sobre';
+const VERSION_LABEL = 'v1.1.1';
+const VERSION_CHANGE = 'Ajuste de texto na seção Sobre, com frase personalizada de autoria do Lucas Viveiros.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
