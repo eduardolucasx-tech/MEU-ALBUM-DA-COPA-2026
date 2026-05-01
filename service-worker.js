@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-0-32-sync-server-timestamp';
+const CACHE='meu-album-copa-v1-1-0-uso-real';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',

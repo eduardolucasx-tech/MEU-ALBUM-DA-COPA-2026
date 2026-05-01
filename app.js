@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.0.32-sync-server-timestamp';
-const VERSION_LABEL = 'v1.0.32';
-const VERSION_CHANGE = 'Sincronização em tempo real ajustada para usar o timestamp do servidor Firebase, evitando diferença de relógio entre celular e desktop e deixando o fluxo nos dois sentidos mais imediato.';
+const VERSION = '1.1.0-uso-real';
+const VERSION_LABEL = 'v1.1.0';
+const VERSION_CHANGE = 'Versão de uso real: entrada em lote, desfazer última ação, modo pacotinho melhorado, Visual rápido com filtros, Trocas em cards no mobile, listas de WhatsApp mais bonitas e estatísticas dentro do Perfil.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -46,6 +46,7 @@ let cloudUnsubscribe = null;
 let applyingRemoteState = false;
 let lastCloudServerMs = 0;
 let packSession = [];
+let lastUndo = null;
 let albumSortMode = localStorage.getItem('meu-album-copa-sort-mode') || 'album';
 const openSections = new Set(loadOpenSections());
 
@@ -142,60 +143,57 @@ function saveState(label){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   queueCloudSave();
 }
-function setQty(id, value, label){
+function setQty(id, value, label, options={}){
   const item = itemById(id); if(!item) return;
-  state.quantities[id] = Math.max(0, Number(value)||0);
+  const before = qty(id);
+  const after = Math.max(0, Number(value)||0);
+  if(before === after) return;
+  state.quantities[id] = after;
+  lastUndo = {id, qty:before, label:`${item.ref} voltou para ${before}`};
   saveState(label || `${item.ref} atualizada`);
   render();
-  toast(`${item.ref}: ${qty(id)} unidade(s)`);
+  toastAction(`${item.ref}: ${qty(id)} unidade(s)`, 'Desfazer', undoLastAction);
 }
 function addQty(id, delta){ const item = itemById(id); if(item) setQty(id, qty(id)+delta, `${item.ref} ${delta>0?'adicionada':'removida'}`); }
 function quickToggle(id){ const item = itemById(id); if(item) setQty(id, qty(id)>0 ? 0 : 1, `${item.ref} ${qty(id)>0?'marcada como falta':'marcada como tenho'}`); }
 function quickAddOne(id){
   const item = itemById(id);
   if(!item) return;
-  setQty(id, qty(id) + 1, `${item.ref} adicionada no visual rápido`);
+  setQty(id, qty(id) + 1, `${item.ref} +1 no visual rápido`);
 }
 function quickClear(id){
   const item = itemById(id);
   if(!item) return;
-  setQty(id, 0, `${item.ref} limpa no visual rápido`);
+  setQty(id, 0, `${item.ref} zerada no visual rápido`);
 }
 function bindQuickActions(scope=document){
-  const LONG_PRESS_MS = 520;
+  const DOUBLE_TAP_MS = 280;
   $$('[data-quick-id]', scope).forEach(el => {
-    let timer = null;
-    let longTriggered = false;
+    let lastTap = 0;
+    let singleTapTimer = null;
 
-    const start = (ev) => {
+    el.addEventListener('click', ev => {
       ev.preventDefault();
-      longTriggered = false;
-      el.classList.add('pressing');
-      timer = setTimeout(() => {
-        longTriggered = true;
-        el.classList.remove('pressing');
-        quickClear(el.dataset.quickId);
-      }, LONG_PRESS_MS);
-    };
+      const now = Date.now();
+      const id = el.dataset.quickId;
 
-    const cancel = () => {
-      if(timer){
-        clearTimeout(timer);
-        timer = null;
+      if(now - lastTap < DOUBLE_TAP_MS){
+        clearTimeout(singleTapTimer);
+        singleTapTimer = null;
+        lastTap = 0;
+        quickClear(id);
+        el.classList.add('double-tap');
+        setTimeout(() => el.classList.remove('double-tap'), 180);
+        return;
       }
-      el.classList.remove('pressing');
-    };
 
-    el.addEventListener('pointerdown', start);
-    el.addEventListener('pointerup', () => {
-      const hadTimer = !!timer;
-      cancel();
-      if(hadTimer && !longTriggered){
-        quickAddOne(el.dataset.quickId);
-      }
+      lastTap = now;
+      singleTapTimer = setTimeout(() => {
+        quickAddOne(id);
+        singleTapTimer = null;
+      }, DOUBLE_TAP_MS + 20);
     });
-    el.addEventListener('pointerleave', cancel);
-    el.addEventListener('pointercancel', cancel);
+
     el.addEventListener('contextmenu', ev => ev.preventDefault());
   });
 }
@@ -489,7 +487,55 @@ function stickerCard(item){
   const q = qty(item.id); const s = statusOf(item); const name = stickerDisplayName(item); const meta = stickerDisplayMeta(item); const special = item.type === 'especial' || item.type === 'history' || item.type === 'coca-cola'; const shield = item.type === 'escudo'; const n = String(item.number).padStart(2,'0'); const badge = (!special && item.code) ? flagMark(item.code, item.section) : escapeHtml(initials(name, item.code));
   return `<div class="sticker ${s} ${special?'special':''} ${shield?'shield':''}"><button class="sticker-main" data-toggle="${item.id}" aria-label="${escapeAttr(item.ref)} ${escapeAttr(name)}"><span class="status ${s}">${s==='missing'?'FALTA':s==='owned'?'TENHO':`REP +${extras(item)}`}</span><span class="sticker-face"><span class="sticker-top"><span class="code">${escapeHtml(codeOf(item))}</span><span class="num">${escapeHtml(n)}</span></span><span class="art"><span class="emblem">${special?'★':badge}</span></span><span class="sticker-info"><strong class="sticker-name">${escapeHtml(name)}</strong><span class="sticker-meta">${escapeHtml(meta)}</span></span></span></button><div class="qty"><button class="qty-btn" data-dec="${item.id}">−</button><b>${q}</b><button class="qty-btn" data-inc="${item.id}">+</button></div></div>`;
 }
-function bindStickerActions(ctx=document){ $$('[data-inc]',ctx).forEach(b=>b.addEventListener('click',()=>addQty(b.dataset.inc,1))); $$('[data-dec]',ctx).forEach(b=>b.addEventListener('click',()=>addQty(b.dataset.dec,-1))); $$('[data-toggle]',ctx).forEach(b=>b.addEventListener('click',()=>quickToggle(b.dataset.toggle))); }
+function bindStickerActions(ctx=document){
+  const DOUBLE_TAP_MS = 280;
+
+  $$('[data-toggle]',ctx).forEach(b=>{
+    let lastTap = 0;
+    let singleTapTimer = null;
+
+    b.addEventListener('click',ev=>{
+      ev.preventDefault();
+      ev.stopPropagation();
+      const id = b.dataset.toggle;
+      const item = itemById(id);
+      if(!item) return;
+
+      const now = Date.now();
+
+      if(now - lastTap < DOUBLE_TAP_MS){
+        clearTimeout(singleTapTimer);
+        singleTapTimer = null;
+        lastTap = 0;
+        setQty(id, 0, `${item.ref} zerada`);
+        const card = b.closest('.sticker');
+        card?.classList.add('double-tap');
+        setTimeout(()=>card?.classList.remove('double-tap'), 180);
+        return;
+      }
+
+      lastTap = now;
+      singleTapTimer = setTimeout(()=>{
+        addQty(id, 1);
+        singleTapTimer = null;
+      }, DOUBLE_TAP_MS + 20);
+    });
+
+    b.addEventListener('contextmenu', ev => ev.preventDefault());
+  });
+
+  $$('[data-inc]',ctx).forEach(b=>b.addEventListener('click',ev=>{
+    ev.preventDefault();
+    ev.stopPropagation();
+    addQty(b.dataset.inc,1);
+  }));
+
+  $$('[data-dec]',ctx).forEach(b=>b.addEventListener('click',ev=>{
+    ev.preventDefault();
+    ev.stopPropagation();
+    addQty(b.dataset.dec,-1);
+  }));
+}
 
 
 function renderQuickView(){
@@ -505,22 +551,23 @@ function renderQuickView(){
       <p class="muted">Nesta aba, cada quadrado mostra só o número da figurinha. Preto com número dourado = falta. Dourado com número preto = tenho. Dourado com ponto preto = tenho repetida.</p>
       <div class="filters quick-filters">
         <select id="quickGroupFilter"><option value="">Todos os grupos</option>${groups.map(g=>`<option value="${g}">Grupo ${g}</option>`).join('')}<option value="EXTRAS">Extras</option></select>
+        <select id="quickStatusFilter"><option value="">Todas</option><option value="missing">Só faltantes</option><option value="duplicate">Só repetidas</option><option value="owned">Só tenho</option></select>
         <input id="quickSearch" class="search" type="search" placeholder="Buscar seleção ou sigla: BRA, Brasil...">
-        <button id="quickToAlbum" class="btn">Ir para álbum completo</button>
       </div>
     </section>
     <div id="quickSectionList" class="quick-sections"></div>`;
 
   const sync = () => renderQuickSections();
   $('#quickGroupFilter')?.addEventListener('change', sync);
+  $('#quickStatusFilter')?.addEventListener('change', sync);
   $('#quickSearch')?.addEventListener('input', sync);
-  $('#quickToAlbum')?.addEventListener('click', () => setView('album'));
   renderQuickSections();
 }
 
 function renderQuickSections(){
   const group = $('#quickGroupFilter')?.value || '';
   const query = ($('#quickSearch')?.value || '').trim().toLowerCase();
+  const status = $('#quickStatusFilter')?.value || '';
   const html = SECTION_LIST
     .filter(sec => !group || sec.group === group)
     .filter(sec => {
@@ -529,6 +576,8 @@ function renderQuickSections(){
       return hay.includes(query);
     })
     .map(sec => {
+      const items = sectionItems(sec).filter(i => !status || statusOf(i) === status);
+      if(!items.length) return '';
       const st = sectionStats(sec);
       const groupLabel = sec.group === 'EXTRAS' ? 'Extras' : `Grupo ${sec.group}`;
       return `<article class="quick-section ${st.progress===1?'complete':''}">
@@ -539,10 +588,10 @@ function renderQuickSections(){
           </div>
           <span class="pill">${pct(st.progress)}</span>
         </header>
-        <div class="quick-grid">${sectionItems(sec).map(quickStickerCell).join('')}</div>
+        <div class="quick-grid">${items.map(quickStickerCell).join('')}</div>
       </article>`;
-    }).join('');
-  $('#quickSectionList').innerHTML = html || '<div class="empty">Nenhuma seção encontrada.</div>';
+    }).filter(Boolean).join('');
+  $('#quickSectionList').innerHTML = html || '<div class="empty">Nenhuma figurinha encontrada nesse filtro.</div>';
   bindQuickActions($('#quickSectionList'));
 }
 
@@ -550,7 +599,7 @@ function quickStickerCell(item){
   const q = qty(item.id);
   const stateClass = q > 1 ? 'duplicate' : q === 1 ? 'owned' : 'missing';
   const n = item.number === 0 ? '00' : String(item.number).padStart(2,'0');
-  const title = `${item.ref} · ${stickerDisplayName(item)} · ${statusLabel(item)} · toque = +1 · toque longo = limpar`;
+  const title = `${item.ref} · ${stickerDisplayName(item)} · ${statusLabel(item)} · toque = +1 · toque duplo = zerar`;
   return `<button type="button" class="quick-sticker ${stateClass}" data-quick-id="${escapeAttr(item.id)}" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}"><span>${escapeHtml(n)}</span></button>`;
 }
 
@@ -577,34 +626,209 @@ function renderAddInsights(){
     </section>`;
 }
 
-function renderAdd(){
-  $('#view-add').innerHTML = `<section class="card"><span class="label">Modo pacotinho</span><h2>Adicionar figurinhas</h2><p class="muted">Digite o código do verso: <strong>BRA 10</strong>, <strong>HAI08</strong>, <strong>FWC 1</strong>, <strong>CC 1</strong> ou <strong>00</strong>.</p><div class="filters"><input id="addInput" class="search" type="search" placeholder="Ex: BRA 10" autocomplete="off"><button id="addSearch" class="btn primary">Buscar</button></div><div class="chips"><button class="pill" data-fill="BRA 10">BRA 10</button><button class="pill" data-fill="MEX 3">MEX 3</button><button class="pill" data-fill="FWC 1">FWC 1</button><button class="pill" data-fill="CC 1">CC 1</button></div><div id="addResults" class="list"></div></section><section class="card"><span class="label">Pacotinho atual</span><div id="packList" class="pack-list"></div><div class="button-row"><button class="btn" id="clearPack">Limpar lista</button></div></section>${renderAddInsights()}`;
-  $('#addInput').addEventListener('input', renderAddResults); $('#addSearch').addEventListener('click', renderAddResults); $('#addInput').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); const c = findCandidates(e.target.value); if(c.length === 1) addFromAdd(c[0].id); else renderAddResults(); }});
-  $$('[data-fill]').forEach(b=>b.addEventListener('click',()=>{ $('#addInput').value=b.dataset.fill; renderAddResults(); $('#addInput').focus(); }));
-  $('#clearPack').addEventListener('click',()=>{packSession=[]; renderPack();}); renderAddResults(); renderPack(); setTimeout(()=>$('#addInput')?.focus(),30);
+
+function parseBatchText(raw){
+  return String(raw || '')
+    .split(/[\n,;]+/)
+    .map(v => v.trim())
+    .filter(Boolean);
 }
-function addFromAdd(id){ const item = itemById(id); if(!item) return; addQty(id,1); packSession = [{ref:item.ref, name:stickerDisplayName(item)}, ...packSession].slice(0,20); renderPack(); renderAddResults(); }
+function addBatchFromText(raw){
+  const tokens = parseBatchText(raw);
+  const found = [];
+  const missing = [];
+  tokens.forEach(token => {
+    const matches = findCandidates(token);
+    if(matches.length === 1){
+      addQty(matches[0].id, 1);
+      found.push(matches[0]);
+      packSession = [{ref:matches[0].ref, name:stickerDisplayName(matches[0])}, ...packSession].slice(0,50);
+    }else{
+      missing.push(token);
+    }
+  });
+  render();
+  setView('add');
+  setTimeout(() => {
+    const box = $('#batchResult');
+    if(box){
+      box.innerHTML = `<div class="batch-summary"><strong>${found.length} adicionadas</strong><span>${missing.length ? `${missing.length} não encontradas: ${escapeHtml(missing.join(', '))}` : 'Tudo certo no pacotinho.'}</span></div>`;
+    }
+  }, 30);
+  toast(`${found.length} figurinhas adicionadas em lote.`);
+}
+function packStats(){
+  const unique = new Set(packSession.map(p=>p.ref)).size;
+  const total = packSession.length;
+  const counts = {};
+  packSession.forEach(p => counts[p.ref] = (counts[p.ref] || 0) + 1);
+  const dup = Object.values(counts).reduce((s,v)=>s+Math.max(0,v-1),0);
+  return {unique,total,dup};
+}
+
+function renderAdd(){
+  const ps = packStats();
+  $('#view-add').innerHTML = `
+    <section class="card">
+      <span class="label">Modo pacotinho</span>
+      <h2>Adicionar figurinhas</h2>
+      <p class="muted">Digite o código do verso: <strong>BRA 10</strong>, <strong>HAI08</strong>, <strong>FWC 1</strong>, <strong>CC 1</strong> ou <strong>00</strong>.</p>
+      <div class="filters">
+        <input id="addInput" class="search" type="search" placeholder="Ex: BRA 10" autocomplete="off">
+        <button id="addSearch" class="btn primary">Buscar</button>
+      </div>
+      <div class="chips">
+        <button class="pill" data-fill="BRA 10">BRA 10</button>
+        <button class="pill" data-fill="MEX 3">MEX 3</button>
+        <button class="pill" data-fill="FWC 1">FWC 1</button>
+        <button class="pill" data-fill="CC 1">CC 1</button>
+      </div>
+      <div id="addResults" class="list"></div>
+    </section>
+
+    <section class="card batch-card">
+      <span class="label">Entrada em lote</span>
+      <p class="muted">Cole uma lista com uma figurinha por linha. Ex.: BRA 10, MEX 03, FWC 01.</p>
+      <textarea id="batchInput" rows="5" placeholder="BRA 10&#10;BRA 11&#10;MEX 03&#10;FWC 01"></textarea>
+      <div class="button-row">
+        <button class="btn primary" id="addBatch">Adicionar lote</button>
+        <button class="btn" id="clearBatch">Limpar campo</button>
+      </div>
+      <div id="batchResult"></div>
+    </section>
+
+    <section class="card pack-card">
+      <span class="label">Pacotinho atual</span>
+      <div class="pack-stats">
+        <span><strong>${ps.total}</strong><small>Total</small></span>
+        <span><strong>${ps.unique}</strong><small>Únicas</small></span>
+        <span><strong>${ps.dup}</strong><small>Repetidas no pacote</small></span>
+      </div>
+      <div id="packList" class="pack-list"></div>
+      <div class="button-row">
+        <button class="btn" id="clearPack">Limpar lista</button>
+        <button class="btn primary" id="finishPack">Finalizar pacote</button>
+      </div>
+    </section>
+    ${renderAddInsights()}`;
+  $('#addInput').addEventListener('input', renderAddResults);
+  $('#addSearch').addEventListener('click', renderAddResults);
+  $('#addInput').addEventListener('keydown', e => {
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const c = findCandidates(e.target.value);
+      if(c.length === 1) addFromAdd(c[0].id);
+      else renderAddResults();
+    }
+  });
+  $$('[data-fill]').forEach(b=>b.addEventListener('click',()=>{
+    $('#addInput').value=b.dataset.fill;
+    renderAddResults();
+    $('#addInput').focus();
+  }));
+  $('#addBatch').addEventListener('click',()=>addBatchFromText($('#batchInput').value));
+  $('#clearBatch').addEventListener('click',()=>{$('#batchInput').value=''; $('#batchResult').innerHTML='';});
+  $('#clearPack').addEventListener('click',()=>{packSession=[]; renderAdd();});
+  $('#finishPack').addEventListener('click',()=>{const done=packStats(); packSession=[]; renderAdd(); toast(`Pacote finalizado: ${done.total} lançadas.`);});
+  renderAddResults();
+  renderPack();
+  setTimeout(()=>$('#addInput')?.focus(),30);
+}
+function addFromAdd(id){ const item = itemById(id); if(!item) return; addQty(id,1); packSession = [{ref:item.ref, name:stickerDisplayName(item)}, ...packSession].slice(0,50); renderPack(); renderAddResults(); }
 function renderAddResults(){ const raw=$('#addInput')?.value||''; const box=$('#addResults'); if(!box) return; if(!raw.trim()){ box.innerHTML='<div class="empty">Digite um código para começar.</div>'; return; } const candidates=findCandidates(raw); box.innerHTML = candidates.length ? candidates.map(i=>`<div class="row add-result compact"><div class="add-result-info"><strong>${escapeHtml(i.ref)} · ${escapeHtml(stickerDisplayName(i))}</strong><small>${escapeHtml(i.section)} · ${escapeHtml(typeLabel(i.type))} · ${statusLabel(i)} · qtd ${qty(i.id)}</small></div><div class="button-row add-actions"><button class="btn" data-adddec="${i.id}">−</button><button class="btn primary" data-addone="${i.id}">+1</button></div></div>`).join('') : '<div class="empty">Não encontrei esse código.</div>'; $$('[data-addone]',box).forEach(b=>b.addEventListener('click',()=>addFromAdd(b.dataset.addone))); $$('[data-adddec]',box).forEach(b=>b.addEventListener('click',()=>addQty(b.dataset.adddec,-1))); }
 function renderPack(){ const box=$('#packList'); if(box) box.innerHTML = packSession.length ? packSession.map(p=>`<div class="row"><div><strong>${escapeHtml(p.ref)}</strong><small>${escapeHtml(p.name)}</small></div><b>+1</b></div>`).join('') : '<div class="empty">Nada lançado neste pacotinho ainda.</div>'; }
 
-function formatList(filter, mode='default'){ const rows=[]; SECTION_LIST.forEach(sec => { const items = sectionItems(sec).filter(filter); if(items.length){ rows.push(`${codeOf(sec)} · ${sec.name}: ` + items.map(i => `${String(i.number).padStart(2,'0')} · ${i.name || i.section}${mode==='dup'?` (+${extras(i)} / x${qty(i.id)})`:''}`).join(', ')); }}); return rows.join('\n') || 'Nada por aqui ainda.'; }
+function formatList(filter, mode='default'){
+  const rows=[];
+  SECTION_LIST.forEach(sec => {
+    const items = sectionItems(sec).filter(filter);
+    if(items.length){
+      const icon = mode==='dup' ? '🔁' : '📌';
+      rows.push(`${icon} ${codeOf(sec)} · ${sec.name}`);
+      rows.push(items.map(i => `${String(i.number).padStart(2,'0')}${mode==='dup'?` (+${extras(i)} / x${qty(i.id)})`:''}`).join(', '));
+      rows.push('');
+    }
+  });
+  return rows.join('\n').trim() || 'Nada por aqui ainda.';
+}
 function renderTrades(){
   const rows = albumItems.filter(i => qty(i.id)>1 || state.tradeStatus[i.id]).sort((a,b)=>a.order-b.order);
-  $('#view-trades').innerHTML = `<section class="grid kpis trade-kpis">${kpi('Repetidas',stats().duplicates)}${kpi('Itens',rows.length)}${kpi('Faltantes',stats().missing)}${kpi('Físicas',stats().physical)}</section><section class="card trade-summary-card"><span class="label">Resumo para WhatsApp</span><p class="muted">Gere rapidamente a lista para mandar no grupo ou para um contato específico.</p><div class="button-row trade-actions"><button class="btn primary" id="copyDup">Copiar repetidas</button><button class="btn" id="copyMissing">Copiar faltantes</button></div></section><section class="card trade-control-card"><span class="label">Controle de trocas</span><div class="table-scroll trade-table-wrap"><table class="trade-table"><thead><tr><th>Figurinha</th><th>Qtd</th><th>Status</th><th>Contato</th><th>Obs.</th></tr></thead><tbody>${rows.map(i=>`<tr><td><strong>${i.ref}</strong><br><small>${escapeHtml(i.name || i.section)}</small></td><td><input type="number" min="0" value="${qty(i.id)}" data-q="${i.id}"></td><td><select data-trade="${i.id}"><option></option>${['Disponível','Reservada','Trocada','Aguardando'].map(v=>`<option ${state.tradeStatus[i.id]===v?'selected':''}>${v}</option>`).join('')}</select></td><td><input value="${escapeAttr(state.contacts[i.id]||'')}" data-contact="${i.id}"></td><td><input value="${escapeAttr(state.notes[i.id]||'')}" data-note="${i.id}"></td></tr>`).join('') || '<tr><td colspan="5" class="empty">Marque repetidas para aparecerem aqui.</td></tr>'}</tbody></table></div></section>`;
-  $('#copyDup').addEventListener('click',()=>copyText(`Repetidas:\n${formatList(i=>qty(i.id)>1,'dup')}`));
-  $('#copyMissing').addEventListener('click',()=>copyText(`Faltantes:\n${formatList(i=>qty(i.id)===0)}`));
+  $('#view-trades').innerHTML = `<section class="grid kpis trade-kpis">${kpi('Repetidas',stats().duplicates)}${kpi('Itens',rows.length)}${kpi('Faltantes',stats().missing)}${kpi('Físicas',stats().physical)}</section>
+  <section class="card trade-summary-card"><span class="label">Resumo para WhatsApp</span><p class="muted">Listas formatadas por seleção para mandar no grupo.</p><div class="button-row trade-actions"><button class="btn primary" id="copyDup">Copiar repetidas</button><button class="btn" id="copyMissing">Copiar faltantes</button></div></section>
+  <section class="card trade-control-card"><span class="label">Controle de trocas</span>
+    <div class="trade-cards">${rows.map(i=>`<article class="trade-card">
+      <div><strong>${escapeHtml(i.ref)}</strong><small>${escapeHtml(stickerDisplayName(i))}</small></div>
+      <label>Qtd<input type="number" min="0" value="${qty(i.id)}" data-q="${i.id}"></label>
+      <label>Status<select data-trade="${i.id}"><option></option>${['Disponível','Reservada','Trocada','Aguardando'].map(v=>`<option ${state.tradeStatus[i.id]===v?'selected':''}>${v}</option>`).join('')}</select></label>
+      <label>Contato<input value="${escapeAttr(state.contacts[i.id]||'')}" data-contact="${i.id}"></label>
+      <label>Obs.<input value="${escapeAttr(state.notes[i.id]||'')}" data-note="${i.id}"></label>
+    </article>`).join('') || '<div class="empty">Marque repetidas para aparecerem aqui.</div>'}</div>
+    <div class="table-scroll trade-table-wrap"><table class="trade-table"><thead><tr><th>Figurinha</th><th>Qtd</th><th>Status</th><th>Contato</th><th>Obs.</th></tr></thead><tbody>${rows.map(i=>`<tr><td><strong>${i.ref}</strong><br><small>${escapeHtml(stickerDisplayName(i))}</small></td><td><input type="number" min="0" value="${qty(i.id)}" data-q="${i.id}"></td><td><select data-trade="${i.id}"><option></option>${['Disponível','Reservada','Trocada','Aguardando'].map(v=>`<option ${state.tradeStatus[i.id]===v?'selected':''}>${v}</option>`).join('')}</select></td><td><input value="${escapeAttr(state.contacts[i.id]||'')}" data-contact="${i.id}"></td><td><input value="${escapeAttr(state.notes[i.id]||'')}" data-note="${i.id}"></td></tr>`).join('') || '<tr><td colspan="5" class="empty">Marque repetidas para aparecerem aqui.</td></tr>'}</tbody></table></div>
+  </section>`;
+  $('#copyDup').addEventListener('click',()=>copyText(`🔁 Repetidas:
+${formatList(i=>qty(i.id)>1,'dup')}`));
+  $('#copyMissing').addEventListener('click',()=>copyText(`📌 Faltantes:
+${formatList(i=>qty(i.id)===0)}`));
   $$('[data-q]').forEach(el=>el.addEventListener('change',()=>setQty(el.dataset.q,el.value)));
   $$('[data-trade]').forEach(el=>el.addEventListener('change',()=>{state.tradeStatus[el.dataset.trade]=el.value; saveState('Troca atualizada'); render();}));
   $$('[data-contact]').forEach(el=>el.addEventListener('change',()=>{state.contacts[el.dataset.contact]=el.value; saveState();}));
   $$('[data-note]').forEach(el=>el.addEventListener('change',()=>{state.notes[el.dataset.note]=el.value; saveState();}));
 }
 function renderMissing(){ const missing=formatList(i=>qty(i.id)===0); const owned=formatList(i=>qty(i.id)>0); const dup=formatList(i=>qty(i.id)>1,'dup'); $('#view-missing').innerHTML = `<section class="card"><span class="label">Faltantes</span><div id="missingBox" class="copy-box">${escapeHtml(missing)}</div><button class="btn primary full" data-copy="missingBox">Copiar faltantes</button></section><section class="card"><span class="label">Tenho</span><div id="ownedBox" class="copy-box">${escapeHtml(owned)}</div><button class="btn full" data-copy="ownedBox">Copiar tenho</button></section><section class="card"><span class="label">Repetidas</span><div id="dupBox" class="copy-box">${escapeHtml(dup)}</div><button class="btn full" data-copy="dupBox">Copiar repetidas</button></section>`; $$('[data-copy]').forEach(b=>b.addEventListener('click',()=>copyText($(`#${b.dataset.copy}`).textContent))); }
-function renderProfile(){ const s=stats(); const level=collectorLevel(s.progress); const email=cloud.user?.email || ''; $('#view-profile').innerHTML = `<section class="card hero" style="--p:${Math.round(s.progress*100)}%"><div><span class="label">Colecionador</span><h2>${escapeHtml(level.name)}</h2><p>${escapeHtml(level.desc)}</p><p class="muted">${s.owned} figurinhas coladas · ${s.duplicates} repetidas · ${s.completeTeams} seleções completas.</p></div><div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div></section><section class="profile-grid"><div class="card"><span class="label">Sincronização</span><h3>${cloud.user?'Google conectado':'Modo local'}</h3><p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p><div class="button-row"><button class="btn primary" id="loginBtn">${cloud.user?'Trocar conta':'Entrar com Google'}</button><button class="btn" id="logoutBtn">Sair</button><button class="btn" id="syncNow">Sincronizar</button></div></div><div class="card"><span class="label">Backup</span><div class="button-row"><button class="btn" id="exportJson">Exportar JSON</button><label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label><button class="btn danger" id="resetAll">Zerar tudo</button></div></div><div class="card about-card"><span class="label">Sobre</span><h3>Meu Álbum da Copa 2026</h3><div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div><p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p><p class="muted">Base preservada com ${albumItems.length} figurinhas.</p></div></section>`; $('#loginBtn').addEventListener('click',signInCloud); $('#logoutBtn').addEventListener('click',signOutCloud); $('#syncNow').addEventListener('click',syncNow); $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('change',importJson); $('#resetAll').addEventListener('click',()=>{ if(confirm('Zerar toda a coleção?')){ state=emptyState(); saveState('Coleção zerada'); render(); }}); }
+
+function profileStatsCards(){
+  const s = stats();
+  const ranked = ranking();
+  const mostComplete = ranked[0];
+  const leastComplete = [...ranked].reverse().find(t => sectionStats(t).owned < sectionStats(t).total) || ranked[ranked.length-1];
+  const topDup = albumItems.filter(i=>qty(i.id)>1).sort((a,b)=>extras(b)-extras(a)).slice(0,3);
+  return `<section class="card stats-card"><span class="label">Estatísticas</span>
+    <div class="stats-grid">
+      <div class="stat-tile"><strong>${s.completeTeams}</strong><span>seleções completas</span></div>
+      <div class="stat-tile"><strong>${escapeHtml(mostComplete?.code || '-')}</strong><span>mais avançada</span></div>
+      <div class="stat-tile"><strong>${escapeHtml(leastComplete?.code || '-')}</strong><span>mais atrasada</span></div>
+      <div class="stat-tile"><strong>${topDup.length ? escapeHtml(topDup[0].ref) : '-'}</strong><span>top repetida</span></div>
+    </div>
+    <div class="mini-list">${topDup.length ? topDup.map(i=>`<div class="row"><div><strong>${escapeHtml(i.ref)}</strong><small>${escapeHtml(stickerDisplayName(i))}</small></div><b>+${extras(i)}</b></div>`).join('') : '<div class="empty">Sem repetidas ainda.</div>'}</div>
+  </section>`;
+}
+
+function renderProfile(){ const s=stats(); const level=collectorLevel(s.progress); const email=cloud.user?.email || ''; $('#view-profile').innerHTML = `<section class="card hero" style="--p:${Math.round(s.progress*100)}%"><div><span class="label">Colecionador</span><h2>${escapeHtml(level.name)}</h2><p>${escapeHtml(level.desc)}</p><p class="muted">${s.owned} figurinhas coladas · ${s.duplicates} repetidas · ${s.completeTeams} seleções completas.</p></div><div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div></section>${profileStatsCards()}<section class="profile-grid"><div class="card"><span class="label">Sincronização</span><h3>${cloud.user?'Google conectado':'Modo local'}</h3><p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p><div class="button-row"><button class="btn primary" id="loginBtn">${cloud.user?'Trocar conta':'Entrar com Google'}</button><button class="btn" id="logoutBtn">Sair</button><button class="btn" id="syncNow">Sincronizar</button></div></div><div class="card"><span class="label">Backup</span><div class="button-row"><button class="btn" id="exportJson">Exportar JSON</button><label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label><button class="btn danger" id="resetAll">Zerar tudo</button></div></div><div class="card about-card"><span class="label">Sobre</span><h3>Meu Álbum da Copa 2026</h3><div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div><p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p><p class="muted">Base preservada com ${albumItems.length} figurinhas.</p></div></section>`; $('#loginBtn').addEventListener('click',signInCloud); $('#logoutBtn').addEventListener('click',signOutCloud); $('#syncNow').addEventListener('click',syncNow); $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('change',importJson); $('#resetAll').addEventListener('click',()=>{ if(confirm('Zerar toda a coleção?')){ state=emptyState(); saveState('Coleção zerada'); render(); }}); }
 
 function copyText(text){ navigator.clipboard?.writeText(text).then(()=>toast('Copiado!')).catch(()=>toast('Não consegui copiar.')); }
 function exportJson(){ const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='meu-album-copa-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
 async function importJson(e){ const file=e.target.files?.[0]; if(!file) return; try{ state=normalizeState(JSON.parse(await file.text())); saveState('Backup importado'); render(); toast('Backup importado.'); }catch(err){ toast('Arquivo inválido.'); } }
-function toast(msg){ const el=$('#toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2200); }
+function toast(msg){
+  const el=$('#toast');
+  el.innerHTML = escapeHtml(msg);
+  el.classList.add('show');
+  clearTimeout(toast.t);
+  toast.t=setTimeout(()=>el.classList.remove('show'),2200);
+}
+function toastAction(msg, actionLabel, action){
+  const el=$('#toast');
+  el.innerHTML = `${escapeHtml(msg)} <button class="toast-action" type="button">${escapeHtml(actionLabel)}</button>`;
+  el.classList.add('show');
+  const btn = el.querySelector('.toast-action');
+  btn?.addEventListener('click', () => {
+    clearTimeout(toast.t);
+    el.classList.remove('show');
+    action?.();
+  });
+  clearTimeout(toast.t);
+  toast.t=setTimeout(()=>el.classList.remove('show'),3600);
+}
+function undoLastAction(){
+  if(!lastUndo) return toast('Nada para desfazer.');
+  const entry = lastUndo;
+  lastUndo = null;
+  const item = itemById(entry.id);
+  if(!item) return;
+  state.quantities[entry.id] = Math.max(0, Number(entry.qty)||0);
+  saveState(entry.label || 'Ação desfeita');
+  render();
+  toast(`${item.ref}: ação desfeita.`);
+}
 
 function initCloud(){
   const cfg=window.FIREBASE_CONFIG;

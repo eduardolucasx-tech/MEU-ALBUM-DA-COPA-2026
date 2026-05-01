@@ -876,3 +876,163 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .google-reminder-card .btn{
   margin-top:12px;
 }
+
+
+/* v1.0.33 - toque simples +1, toque duplo zera */
+.sticker-main,
+.quick-sticker,
+.sticker,
+.sticker *{
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-touch-callout:none;
+}
+.sticker-main,
+.quick-sticker{
+  touch-action:manipulation;
+}
+.sticker.double-tap,
+.quick-sticker.double-tap{
+  animation:doubleTapFlash .18s ease;
+}
+@keyframes doubleTapFlash{
+  0%{transform:scale(1)}
+  50%{transform:scale(.96);filter:brightness(1.18)}
+  100%{transform:scale(1)}
+}
+.quick-sticker.pressing{
+  transform:none;
+  filter:none;
+}
+
+
+/* v1.1.0 - melhorias de uso real */
+.toast-action{
+  margin-left:10px;
+  border:0;
+  border-radius:999px;
+  padding:6px 10px;
+  background:rgba(214,175,82,.16);
+  color:var(--gold);
+  font-weight:900;
+}
+textarea{
+  padding:12px 13px;
+  resize:vertical;
+  line-height:1.35;
+}
+.batch-card textarea{
+  margin:8px 0 12px;
+}
+.batch-summary{
+  margin-top:12px;
+  padding:12px;
+  border-radius:18px;
+  border:1px solid rgba(214,175,82,.2);
+  background:rgba(214,175,82,.08);
+}
+.batch-summary strong,
+.batch-summary span{
+  display:block;
+}
+.batch-summary span{
+  margin-top:4px;
+  color:var(--muted);
+}
+.pack-stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin:10px 0 12px;
+}
+.pack-stats span{
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:10px;
+  background:rgba(255,255,255,.035);
+}
+.pack-stats strong,
+.pack-stats small{
+  display:block;
+}
+.pack-stats strong{
+  font-size:1.2rem;
+  color:var(--gold);
+}
+.pack-stats small{
+  color:var(--muted);
+  font-size:.72rem;
+  margin-top:3px;
+}
+.trade-cards{
+  display:grid;
+  gap:12px;
+}
+.trade-card{
+  display:grid;
+  gap:10px;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:20px;
+  padding:12px;
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015));
+}
+.trade-card strong,
+.trade-card small,
+.trade-card label{
+  display:block;
+}
+.trade-card small{
+  color:var(--muted);
+  margin-top:3px;
+}
+.trade-card label{
+  color:var(--muted);
+  font-size:.74rem;
+}
+.trade-card input,
+.trade-card select{
+  margin-top:5px;
+}
+.trade-table-wrap{
+  display:none;
+}
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+  margin:10px 0 12px;
+}
+.stat-tile{
+  padding:12px;
+  border-radius:18px;
+  background:rgba(255,255,255,.035);
+  border:1px solid var(--line);
+}
+.stat-tile strong,
+.stat-tile span{
+  display:block;
+}
+.stat-tile strong{
+  color:var(--gold);
+  font-size:1.25rem;
+}
+.stat-tile span{
+  color:var(--muted);
+  font-size:.76rem;
+  margin-top:4px;
+}
+.mini-list{
+  display:grid;
+  gap:8px;
+}
+@media(min-width:760px){
+  .trade-cards{
+    display:none;
+  }
+  .trade-table-wrap{
+    display:block;
+  }
+  .stats-grid{
+    grid-template-columns:repeat(4,1fr);
+  }
+}
