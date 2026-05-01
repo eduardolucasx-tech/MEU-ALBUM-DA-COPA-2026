@@ -846,3 +846,17 @@ button{cursor:pointer;-webkit-tap-highlight-color:transparent}
 .emblem .flag-img{
   border-radius:50%;
 }
+
+
+/* v1.0.29 - botão adicionar padronizado */
+.nav-main,
+.nav-main.active{
+  background:rgba(18,19,22,.9);
+  color:#d7d8de;
+  border:1px solid var(--line);
+}
+.nav-main.active{
+  color:var(--gold);
+  border-color:rgba(214,175,82,.35);
+  background:rgba(214,175,82,.09);
+}

@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.0.28-flags-especiais';
-const VERSION_LABEL = 'v1.0.28';
-const VERSION_CHANGE = 'Correção das imagens especiais: adicionados ícones SVG para FWC, COC/CC e 00, eliminando os erros 404 das seções que não são países.';
+const VERSION = '1.0.29-nav-add-padronizado';
+const VERSION_LABEL = 'v1.0.29';
+const VERSION_CHANGE = 'Botão Adicionar padronizado com os demais itens da barra inferior, seguindo o mesmo estilo visual e comportamento de ativo.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
