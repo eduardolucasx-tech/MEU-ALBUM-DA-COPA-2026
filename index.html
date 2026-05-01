@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#050505" />
+  <meta name="description" content="Meu Álbum da Copa 2026 — controle mobile de figurinhas, repetidas e faltantes." />
+  <title>Meu Álbum da Copa 2026</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true"><img src="./brand-logo-header.png" alt="" /></div>
+        <div>
+          <p class="eyebrow">Meu Álbum da Copa</p>
+          <h1 id="viewTitle">Início</h1>
+        </div>
+      </div>
+      <button id="syncButton" class="icon-button" type="button" aria-label="Sincronizar">↻</button>
+    </header>
+
+    <main class="screen-wrap">
+      <section id="view-home" class="view active" aria-label="Início"></section>
+      <section id="view-album" class="view" aria-label="Álbum"></section>
+      <section id="view-quick" class="view" aria-label="Visualização rápida"></section>
+      <section id="view-add" class="view" aria-label="Adicionar"></section>
+      <section id="view-trades" class="view" aria-label="Trocas"></section>
+      <section id="view-missing" class="view" aria-label="Faltantes"></section>
+      <section id="view-profile" class="view" aria-label="Perfil"></section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Navegação principal">
+      <button id="navToggle" class="nav-toggle" type="button" aria-label="Expandir menu" aria-expanded="false"><span>☰</span><b>Menu</b></button>
+      <button class="nav-btn active" data-view="home"><span>⌂</span><b>Início</b></button>
+      <button class="nav-btn" data-view="quick"><span>◫</span><b>Rápido</b></button>
+      <button class="nav-btn nav-main" data-view="add"><span>＋</span><b>Adicionar</b></button>
+      <button class="nav-btn" data-view="trades"><span>⇄</span><b>Trocas</b></button>
+      <button class="nav-btn" data-view="profile"><span>◎</span><b>Perfil</b></button>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="data.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

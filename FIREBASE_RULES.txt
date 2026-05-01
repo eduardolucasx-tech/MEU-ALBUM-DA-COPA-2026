@@ -1,0 +1,14 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /checklist_mundial_users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Uso fechado: qualquer usuário logado com o código da família pode ler/gravar.
+    match /checklist_mundial_families/{familyCode} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
