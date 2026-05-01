@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.0.27-bandeiras-imagem';
-const VERSION_LABEL = 'v1.0.27';
-const VERSION_CHANGE = 'Bandeiras trocadas de emojis para imagens SVG padronizadas em todas as seleções, corrigindo Inglaterra/Escócia e deixando o visual consistente entre navegadores.';
+const VERSION = '1.0.28-flags-especiais';
+const VERSION_LABEL = 'v1.0.28';
+const VERSION_CHANGE = 'Correção das imagens especiais: adicionados ícones SVG para FWC, COC/CC e 00, eliminando os erros 404 das seções que não são países.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -67,7 +67,8 @@ function initials(text, fallback){ return String(text || fallback || '').split(/
 function flagEmoji(code){ return ''; }
 function flagImg(code, label=''){
   if(!code) return '';
-  const src = `./flags/${String(code).toLowerCase()}.svg`;
+  const normalized = String(code).toUpperCase() === 'CC' ? 'coc' : String(code).toLowerCase();
+  const src = `./flags/${normalized}.svg`;
   return `<img class="flag-img" src="${src}" alt="${escapeAttr(label || code)}" loading="lazy" decoding="async">`;
 }
 function flagMark(code, label=''){

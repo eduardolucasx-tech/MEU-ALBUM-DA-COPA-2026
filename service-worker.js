@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-0-27-flags-image';
+const CACHE='meu-album-copa-v1-0-28-flags-especiais';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',
@@ -50,6 +50,9 @@ const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./fireba
   './flags/uru.svg',
   './flags/usa.svg',
   './flags/uzb.svg',
+  './flags/fwc.svg',
+  './flags/coc.svg',
+  './flags/zero.svg',
   './icon.svg'];
 self.addEventListener('install',event=>{self.skipWaiting();event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)));});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim();});
