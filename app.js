@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.4.3-lazy-album-mobile';
-const VERSION_LABEL = 'v1.4.3';
-const VERSION_CHANGE = 'O Álbum agora usa carregamento leve no mobile: seleções fechadas não montam todas as figurinhas de uma vez, reduzindo travamentos ao voltar para o Início no Safari/iPhone.';
+const VERSION = '1.4.4-fix-lazy-album-open';
+const VERSION_LABEL = 'v1.4.4';
+const VERSION_CHANGE = 'Correção do carregamento leve do Álbum: ao abrir uma seleção, as figurinhas carregam imediatamente com fallback compatível com Safari/iPhone.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -644,6 +644,21 @@ function updateSortButton(){ applySortSwitch($('#sortModeBtn')); }
 function updateQuickSortButton(){ applySortSwitch($('#quickSortModeBtn')); }
 function updateChips(){}
 function matchItem(item, q, status){ const hay = `${item.ref} ${item.code} ${item.section} ${item.name} ${item.type} ${statusLabel(item)} ${item.group}`.toLowerCase(); return (!q || hay.includes(q)) && (!status || statusOf(item) === status); }
+
+function loadAlbumSectionGrid(card, key){
+  if(!card || !key) return;
+  const grid = card.querySelector('.sticker-grid');
+  if(!grid) return;
+  if(grid.dataset.loaded === '1' && grid.innerHTML.trim()) return;
+
+  const sec = SECTION_LIST.find(s => String(s.sectionKey || s.code) === String(key));
+  if(!sec) return;
+
+  grid.innerHTML = sectionItems(sec).map(stickerCard).join('');
+  grid.dataset.loaded = '1';
+  bindStickerActions(grid);
+}
+
 function renderTeamList(){
   const container = $('#teamList');
   if(!container) return;
@@ -735,17 +750,13 @@ function renderTeamList(){
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 
     if(open){
-      const grid = card?.querySelector(`[data-grid-section="${cssEscapeSafe(key)}"]`);
-      if(grid && !grid.dataset.loaded){
-        const sec = SECTION_LIST.find(s => (s.sectionKey || s.code) === key);
-        if(sec){
-          grid.innerHTML = sectionItems(sec).map(stickerCard).join('');
-          grid.dataset.loaded = '1';
-          bindStickerActions(grid);
-        }
-      }
+      loadAlbumSectionGrid(card, key);
     }
   }));
+
+  $$('.album-page.open', container).forEach(card => {
+    loadAlbumSectionGrid(card, card.dataset.section);
+  });
 
   bindStickerActions(container);
 }
