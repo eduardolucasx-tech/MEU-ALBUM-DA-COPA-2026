@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.2.4-estavel';
-const VERSION_LABEL = 'v1.2.4';
-const VERSION_CHANGE = 'Versão estável de consolidação: revisão final da Home/Álbum, Modo rápido, Álbum Familiar, infraestrutura pública, placeholders de anúncio, responsividade mobile e limpeza de ajustes redundantes.';
+const VERSION = '1.2.5-switch-ordem-dupla';
+const VERSION_LABEL = 'v1.2.5';
+const VERSION_CHANGE = 'Chave de ordenação redesenhada: agora mostra Ordem do álbum de um lado e Ordem alfabética do outro, tanto no Início/Álbum quanto no Modo rápido.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -447,9 +447,10 @@ function renderHome(){
           </div>
           <div class="album-sort-row">
             <span class="muted">Organizar seleções</span>
-            <button id="sortModeBtn" class="sort-switch" type="button" aria-pressed="false">
+            <button id="sortModeBtn" class="sort-switch dual-sort-switch" type="button" aria-pressed="false">
+              <span class="sort-option sort-album">Ordem do álbum</span>
               <span class="switch-track"><i></i></span>
-              <b>Ordem do álbum</b>
+              <span class="sort-option sort-alpha">Ordem alfabética</span>
             </button>
           </div>
         </div>
@@ -519,8 +520,7 @@ function applySortSwitch(btn){
   btn.setAttribute('aria-pressed', alpha ? 'true' : 'false');
   const label = btn.querySelector('b');
   if(label) label.textContent = alpha ? 'Ordem alfabética' : 'Ordem do álbum';
-  else btn.textContent = alpha ? 'Ordem alfabética' : 'Ordem do álbum';
-  btn.title = 'Clique para alternar a organização';
+  btn.title = alpha ? 'Organizando em ordem alfabética' : 'Organizando na ordem do álbum';
 }
 function updateSortButton(){ applySortSwitch($('#sortModeBtn')); }
 function updateQuickSortButton(){ applySortSwitch($('#quickSortModeBtn')); }
@@ -687,7 +687,7 @@ function renderQuickView(){
       </div>
       <div class="album-sort-row quick-sort-row">
         <span class="muted">Organizar seleções</span>
-        <button id="quickSortModeBtn" class="sort-switch" type="button" aria-pressed="false"><span class="switch-track"><i></i></span><b>Ordem do álbum</b></button>
+        <button id="quickSortModeBtn" class="sort-switch dual-sort-switch" type="button" aria-pressed="false"><span class="sort-option sort-album">Ordem do álbum</span><span class="switch-track"><i></i></span><span class="sort-option sort-alpha">Ordem alfabética</span></button>
       </div>
     </section>
     <div id="quickSectionList" class="quick-sections"></div>`;

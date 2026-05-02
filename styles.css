@@ -1606,3 +1606,64 @@ textarea{
     max-width:100% !important;
   }
 }
+
+
+/* v1.2.5 - chave dupla de ordenação */
+.dual-sort-switch{
+  width:100% !important;
+  max-width:100% !important;
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) !important;
+  align-items:center !important;
+  gap:8px !important;
+  padding:7px 10px !important;
+  overflow:hidden !important;
+}
+.dual-sort-switch .sort-option{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:.75rem;
+  line-height:1.05;
+  color:var(--muted);
+  font-weight:900;
+}
+.dual-sort-switch .sort-album{
+  text-align:left;
+  color:var(--gold);
+}
+.dual-sort-switch .sort-alpha{
+  text-align:right;
+}
+.dual-sort-switch.is-alpha .sort-album{
+  color:var(--muted);
+}
+.dual-sort-switch.is-alpha .sort-alpha{
+  color:var(--gold);
+}
+.dual-sort-switch .switch-track{
+  width:48px;
+  height:28px;
+  flex:0 0 48px;
+}
+.dual-sort-switch.is-alpha .switch-track i{
+  transform:translateX(20px);
+}
+.quick-sort-row{
+  display:grid !important;
+  grid-template-columns:1fr !important;
+}
+.quick-sort-row .dual-sort-switch,
+.album-sort-row .dual-sort-switch{
+  justify-self:stretch !important;
+}
+@media(max-width:520px){
+  .dual-sort-switch .sort-option{
+    font-size:.68rem;
+  }
+  .dual-sort-switch{
+    gap:6px !important;
+    padding:7px 8px !important;
+  }
+}

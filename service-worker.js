@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-2-4-estavel';
+const CACHE='meu-album-copa-v1-2-5-switch-ordem-dupla';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',
