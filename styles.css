@@ -2060,3 +2060,10 @@ textarea{
   35%{transform:scale(.95);filter:brightness(1.16)}
   100%{transform:scale(1)}
 }
+
+
+/* v1.3.3 - trava pós-toque-longo */
+.quick-sticker.long-press,
+.sticker.long-press{
+  pointer-events:none;
+}

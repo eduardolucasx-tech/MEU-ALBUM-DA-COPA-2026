@@ -1,7 +1,22 @@
+
+function safeToast(message){
+  try{
+    const toastEl = document.getElementById('toast');
+    if(toastEl){
+      toastEl.textContent = String(message || '');
+      toastEl.classList.add('show');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(()=>toastEl.classList.remove('show'), 1800);
+      return;
+    }
+  }catch(e){}
+  try{ console.log('[toast]', message); }catch(e){}
+}
+
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.3.2-fix-toast-firebase';
-const VERSION_LABEL = 'v1.3.2';
-const VERSION_CHANGE = 'Correção de estabilidade: chamadas de aviso/toast agora são seguras durante sincronização Firebase, evitando erro no console e travamento de atualizações em tempo real.';
+const VERSION = '1.3.4-texto-como-usar-atualizado';
+const VERSION_LABEL = 'v1.3.4';
+const VERSION_CHANGE = 'Texto do “Como usar?” no Visual rápido atualizado para refletir o novo gesto: toque simples adiciona e toque longo zera a figurinha.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -149,6 +164,7 @@ let lastCloudServerMs = 0;
 let packSession = [];
 let lastUndo = null;
 const gestureLastTapById = new Map();
+const gestureSuppressClickUntil = new Map();
 let albumSortMode = localStorage.getItem('meu-album-copa-sort-mode') || 'album';
 const openSections = new Set(loadOpenSections());
 let firstHomeRenderDone = false;
@@ -267,6 +283,7 @@ function flashGesture(el, className){
 function bindStickerGesture(el, id, onSingle, onClear){
   const LONG_PRESS_MS = 420;
   const MOVE_TOLERANCE = 12;
+  const SUPPRESS_AFTER_CLEAR_MS = 900;
   let pressTimer = null;
   let longTriggered = false;
   let pointerActive = false;
@@ -291,7 +308,9 @@ function bindStickerGesture(el, id, onSingle, onClear){
   };
 
   const triggerLongPress = () => {
+    if(!pointerActive) return;
     longTriggered = true;
+    gestureSuppressClickUntil.set(id, Date.now() + SUPPRESS_AFTER_CLEAR_MS);
     clearPressTimer();
     onClear(id);
     flashGesture(targetEl(), 'long-press');
@@ -302,6 +321,13 @@ function bindStickerGesture(el, id, onSingle, onClear){
 
   el.addEventListener('pointerdown', ev => {
     if(ev.button !== undefined && ev.button !== 0) return;
+
+    const suppressUntil = gestureSuppressClickUntil.get(id) || 0;
+    if(Date.now() < suppressUntil){
+      ev.preventDefault();
+      return;
+    }
+
     pointerActive = true;
     longTriggered = false;
     activePointerId = ev.pointerId;
@@ -310,7 +336,7 @@ function bindStickerGesture(el, id, onSingle, onClear){
     el.classList.add('pressing');
     clearPressTimer();
     pressTimer = setTimeout(triggerLongPress, LONG_PRESS_MS);
-  }, {passive:true});
+  }, {passive:false});
 
   el.addEventListener('pointermove', ev => {
     if(!pointerActive || activePointerId !== ev.pointerId) return;
@@ -324,13 +350,17 @@ function bindStickerGesture(el, id, onSingle, onClear){
 
   const finishPress = (ev, shouldFireSingle = true) => {
     if(activePointerId !== null && ev.pointerId !== undefined && activePointerId !== ev.pointerId) return;
+
     const wasLong = longTriggered;
     resetPressState();
-    if(wasLong){
+
+    const suppressUntil = gestureSuppressClickUntil.get(id) || 0;
+    if(wasLong || Date.now() < suppressUntil){
       ev.preventDefault();
       ev.stopPropagation();
       return;
     }
+
     if(shouldFireSingle){
       ev.preventDefault();
       ev.stopPropagation();
@@ -346,6 +376,14 @@ function bindStickerGesture(el, id, onSingle, onClear){
     clearPressTimer();
     el.classList.remove('pressing');
   }, {passive:true});
+
+  el.addEventListener('click', ev => {
+    const suppressUntil = gestureSuppressClickUntil.get(id) || 0;
+    if(Date.now() < suppressUntil){
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+  }, true);
 
   el.addEventListener('dragstart', ev => ev.preventDefault());
   el.addEventListener('contextmenu', ev => ev.preventDefault());
@@ -747,7 +785,7 @@ function renderQuickView(){
             <span class="legend-item"><i class="legend-box quick duplicate"></i> Tenho repetida</span>
           </div>
           <p class="muted">Nesta aba, cada quadrado mostra só o número da figurinha. Preto com número dourado = falta. Dourado com número preto = tenho. Dourado com ponto preto = tenho repetida.</p>
-          <p class="muted">Toque uma vez para adicionar +1. Toque duplo rápido para zerar a figurinha.</p>
+          <p class="muted">Toque uma vez para adicionar +1. Toque longo para zerar a figurinha.</p>
 
           <div class="quick-inline-filters">
             <span class="label">Filtros rápidos</span>
