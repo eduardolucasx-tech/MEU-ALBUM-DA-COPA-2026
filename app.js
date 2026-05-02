@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.2.13-perfil-alinhado';
-const VERSION_LABEL = 'v1.2.13';
-const VERSION_CHANGE = 'Painel do colecionador refinado: anel de porcentagem alinhado ao topo, grade de estatísticas ocupando a parte inferior e remoção de redundâncias no resumo superior.';
+const VERSION = '1.3.0-trocas-compactas';
+const VERSION_LABEL = 'v1.3.0';
+const VERSION_CHANGE = 'Trocas redesenhadas para uso real: resumo por status, filtros, lista compacta e edição por gaveta. Mantidas todas as melhorias anteriores de layout, perfil e visual rápido.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -918,27 +918,204 @@ function formatList(filter, mode='default'){
   return rows.join('\n').trim() || 'Nada por aqui ainda.';
 }
 function renderTrades(){
-  const rows = albumItems.filter(i => qty(i.id)>1 || state.tradeStatus[i.id]).sort((a,b)=>a.order-b.order);
-  $('#view-trades').innerHTML = `<section class="grid kpis trade-kpis">${kpi('Repetidas',stats().duplicates)}${kpi('Itens',rows.length)}${kpi('Faltantes',stats().missing)}${kpi('Físicas',stats().physical)}</section>
-  <section class="card trade-summary-card"><span class="label">Resumo para WhatsApp</span><p class="muted">Listas formatadas por seleção para mandar no grupo.</p><div class="button-row trade-actions"><button class="btn primary" id="copyDup">Copiar repetidas</button><button class="btn" id="copyMissing">Copiar faltantes</button></div></section>
-  <section class="card trade-control-card"><span class="label">Controle de trocas</span>
-    <div class="trade-cards">${rows.map(i=>`<article class="trade-card">
-      <div><strong>${escapeHtml(i.ref)}</strong><small>${escapeHtml(stickerDisplayName(i))}</small></div>
-      <label>Qtd<input type="number" min="0" value="${qty(i.id)}" data-q="${i.id}"></label>
-      <label>Status<select data-trade="${i.id}"><option></option>${['Disponível','Reservada','Trocada','Aguardando'].map(v=>`<option ${state.tradeStatus[i.id]===v?'selected':''}>${v}</option>`).join('')}</select></label>
-      <label>Contato<input value="${escapeAttr(state.contacts[i.id]||'')}" data-contact="${i.id}"></label>
-      <label>Obs.<input value="${escapeAttr(state.notes[i.id]||'')}" data-note="${i.id}"></label>
-    </article>`).join('') || '<div class="empty">Marque repetidas para aparecerem aqui.</div>'}</div>
-    <div class="table-scroll trade-table-wrap"><table class="trade-table"><thead><tr><th>Figurinha</th><th>Qtd</th><th>Status</th><th>Contato</th><th>Obs.</th></tr></thead><tbody>${rows.map(i=>`<tr><td><strong>${i.ref}</strong><br><small>${escapeHtml(stickerDisplayName(i))}</small></td><td><input type="number" min="0" value="${qty(i.id)}" data-q="${i.id}"></td><td><select data-trade="${i.id}"><option></option>${['Disponível','Reservada','Trocada','Aguardando'].map(v=>`<option ${state.tradeStatus[i.id]===v?'selected':''}>${v}</option>`).join('')}</select></td><td><input value="${escapeAttr(state.contacts[i.id]||'')}" data-contact="${i.id}"></td><td><input value="${escapeAttr(state.notes[i.id]||'')}" data-note="${i.id}"></td></tr>`).join('') || '<tr><td colspan="5" class="empty">Marque repetidas para aparecerem aqui.</td></tr>'}</tbody></table></div>
-  </section>`;
+  const statusOptions = ['Disponível','Em negociação','Reservada','Concluída'];
+  const normalizeTradeStatus = (value) => {
+    const raw = String(value || '').trim();
+    if(!raw) return '';
+    if(raw === 'Trocada') return 'Concluída';
+    if(raw === 'Aguardando') return 'Em negociação';
+    return raw;
+  };
+  const tradeRows = albumItems
+    .filter(i => qty(i.id) > 1 || state.tradeStatus[i.id] || state.contacts[i.id] || state.notes[i.id])
+    .sort((a,b)=>a.order-b.order);
+
+  const derivedStatus = (item) => {
+    const manual = normalizeTradeStatus(state.tradeStatus[item.id]);
+    if(manual) return manual;
+    return qty(item.id) > 1 ? 'Disponível' : '';
+  };
+
+  const counters = {
+    available: tradeRows.filter(i => derivedStatus(i) === 'Disponível').length,
+    negotiating: tradeRows.filter(i => derivedStatus(i) === 'Em negociação').length,
+    reserved: tradeRows.filter(i => derivedStatus(i) === 'Reservada').length,
+    done: tradeRows.filter(i => derivedStatus(i) === 'Concluída').length
+  };
+
+  const expanded = new Set();
+
+  $('#view-trades').innerHTML = `
+    <section class="grid kpis trade-kpis trade-overview">
+      ${kpi('Disponíveis', counters.available)}
+      ${kpi('Negociação', counters.negotiating)}
+      ${kpi('Reservadas', counters.reserved)}
+      ${kpi('Concluídas', counters.done)}
+    </section>
+
+    <section class="card trade-summary-card">
+      <span class="label">Resumo para WhatsApp</span>
+      <p class="muted">Listas formatadas por seleção para mandar no grupo.</p>
+      <div class="button-row trade-actions">
+        <button class="btn primary" id="copyDup">Copiar repetidas</button>
+        <button class="btn" id="copyMissing">Copiar faltantes</button>
+      </div>
+    </section>
+
+    <section class="card trade-manager-card">
+      <span class="label">Gestão de trocas</span>
+      <h3>Lista compacta</h3>
+      <p class="muted">Toque na figurinha para abrir os detalhes e editar status, contato e observações.</p>
+
+      <div class="trade-toolbar">
+        <input id="tradeSearch" class="search" type="search" placeholder="Buscar figurinha, seleção ou código">
+        <select id="tradeStatusFilter">
+          <option value="">Todos os status</option>
+          ${statusOptions.map(v=>`<option value="${v}">${v}</option>`).join('')}
+        </select>
+      </div>
+
+      <div id="tradeList" class="trade-list"></div>
+    </section>`;
+
   $('#copyDup').addEventListener('click',()=>copyText(`🔁 Repetidas:
 ${formatList(i=>qty(i.id)>1,'dup')}`));
   $('#copyMissing').addEventListener('click',()=>copyText(`📌 Faltantes:
 ${formatList(i=>qty(i.id)===0)}`));
-  $$('[data-q]').forEach(el=>el.addEventListener('change',()=>setQty(el.dataset.q,el.value)));
-  $$('[data-trade]').forEach(el=>el.addEventListener('change',()=>{state.tradeStatus[el.dataset.trade]=el.value; saveState('Troca atualizada'); render();}));
-  $$('[data-contact]').forEach(el=>el.addEventListener('change',()=>{state.contacts[el.dataset.contact]=el.value; saveState();}));
-  $$('[data-note]').forEach(el=>el.addEventListener('change',()=>{state.notes[el.dataset.note]=el.value; saveState();}));
+
+  const searchEl = $('#tradeSearch');
+  const statusEl = $('#tradeStatusFilter');
+  const listEl = $('#tradeList');
+
+  function copyTradeMessage(item){
+    const teamCode = codeOf(item);
+    const name = stickerDisplayName(item);
+    const msg = `Oi! Tenho a figurinha ${item.ref} (${teamCode} · ${name}) repetida para troca. Se quiser, me chama aqui.`;
+    copyText(msg);
+  }
+
+  function clearTradeFields(id){
+    delete state.tradeStatus[id];
+    delete state.contacts[id];
+    delete state.notes[id];
+    saveState('Dados da troca limpos');
+  }
+
+  function renderTradeList(){
+    const q = (searchEl?.value || '').trim().toLowerCase();
+    const statusFilter = statusEl?.value || '';
+
+    const filtered = tradeRows.filter(item => {
+      const hay = `${item.ref} ${codeOf(item)} ${stickerDisplayName(item)}`.toLowerCase();
+      const itemStatus = derivedStatus(item);
+      const matchSearch = !q || hay.includes(q);
+      const matchStatus = !statusFilter || itemStatus === statusFilter;
+      return matchSearch && matchStatus;
+    });
+
+    listEl.innerHTML = filtered.map(item => {
+      const itemStatus = derivedStatus(item);
+      const slug = itemStatus.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-');
+      const open = expanded.has(item.id);
+      const contact = String(state.contacts[item.id] || '').trim();
+
+      return `<article class="trade-item ${open ? 'open' : ''}">
+        <button class="trade-item-head" type="button" data-expand="${item.id}" aria-expanded="${open ? 'true' : 'false'}">
+          <div class="trade-item-main">
+            <strong>${escapeHtml(item.ref)}</strong>
+            <small>${escapeHtml(stickerDisplayName(item))}</small>
+            <span class="trade-item-meta">Qtd ${qty(item.id)}${contact ? ` • ${escapeHtml(contact)}` : ''}</span>
+          </div>
+          <div class="trade-item-side">
+            <span class="trade-status-chip status-${slug || 'vazio'}">${escapeHtml(itemStatus || 'Sem status')}</span>
+            <b class="trade-chevron">⌄</b>
+          </div>
+        </button>
+
+        <div class="trade-item-body">
+          <div class="trade-form-grid">
+            <label>Qtd total no app
+              <input type="number" min="0" value="${qty(item.id)}" data-q="${item.id}">
+            </label>
+
+            <label>Status
+              <select data-trade="${item.id}">
+                <option value=""></option>
+                ${statusOptions.map(v=>`<option value="${v}" ${itemStatus===v ? 'selected' : ''}>${v}</option>`).join('')}
+              </select>
+            </label>
+
+            <label>Contato
+              <input value="${escapeAttr(state.contacts[item.id] || '')}" data-contact="${item.id}" placeholder="Ex.: Lucas / WhatsApp">
+            </label>
+
+            <label>Obs.
+              <input value="${escapeAttr(state.notes[item.id] || '')}" data-note="${item.id}" placeholder="Ex.: trocar por BRA 14">
+            </label>
+          </div>
+
+          <div class="button-row trade-inline-actions">
+            <button class="btn" type="button" data-copy-trade="${item.id}">Copiar mensagem</button>
+            <button class="btn danger" type="button" data-clear-trade="${item.id}">Limpar dados</button>
+          </div>
+        </div>
+      </article>`;
+    }).join('') || '<div class="empty trade-empty">Nenhuma figurinha encontrada para esse filtro.</div>';
+
+    $$('[data-expand]').forEach(el => el.addEventListener('click', () => {
+      const id = el.dataset.expand;
+      if(expanded.has(id)) expanded.delete(id);
+      else expanded.add(id);
+      renderTradeList();
+    }));
+
+    $$('[data-q]').forEach(el => el.addEventListener('change', () => {
+      setQty(el.dataset.q, el.value, `${itemById(el.dataset.q)?.ref || 'Figurinha'} atualizada em Trocas`);
+    }));
+
+    $$('[data-trade]').forEach(el => el.addEventListener('change', () => {
+      const id = el.dataset.trade;
+      const value = el.value;
+      if(value) state.tradeStatus[id] = value;
+      else delete state.tradeStatus[id];
+      saveState('Status da troca atualizado');
+      renderTradeList();
+    }));
+
+    $$('[data-contact]').forEach(el => el.addEventListener('change', () => {
+      const id = el.dataset.contact;
+      const value = String(el.value || '').trim();
+      if(value) state.contacts[id] = value;
+      else delete state.contacts[id];
+      saveState('Contato da troca atualizado');
+      renderTradeList();
+    }));
+
+    $$('[data-note]').forEach(el => el.addEventListener('change', () => {
+      const id = el.dataset.note;
+      const value = String(el.value || '').trim();
+      if(value) state.notes[id] = value;
+      else delete state.notes[id];
+      saveState('Observação da troca atualizada');
+      renderTradeList();
+    }));
+
+    $$('[data-copy-trade]').forEach(el => el.addEventListener('click', () => {
+      const item = itemById(el.dataset.copyTrade);
+      if(item) copyTradeMessage(item);
+    }));
+
+    $$('[data-clear-trade]').forEach(el => el.addEventListener('click', () => {
+      const id = el.dataset.clearTrade;
+      clearTradeFields(id);
+      renderTradeList();
+    }));
+  }
+
+  searchEl?.addEventListener('input', renderTradeList);
+  statusEl?.addEventListener('change', renderTradeList);
+
+  renderTradeList();
 }
 function renderMissing(){ const missing=formatList(i=>qty(i.id)===0); const owned=formatList(i=>qty(i.id)>0); const dup=formatList(i=>qty(i.id)>1,'dup'); $('#view-missing').innerHTML = `<section class="card"><span class="label">Faltantes</span><div id="missingBox" class="copy-box">${escapeHtml(missing)}</div><button class="btn primary full" data-copy="missingBox">Copiar faltantes</button></section><section class="card"><span class="label">Tenho</span><div id="ownedBox" class="copy-box">${escapeHtml(owned)}</div><button class="btn full" data-copy="ownedBox">Copiar tenho</button></section><section class="card"><span class="label">Repetidas</span><div id="dupBox" class="copy-box">${escapeHtml(dup)}</div><button class="btn full" data-copy="dupBox">Copiar repetidas</button></section>`; $$('[data-copy]').forEach(b=>b.addEventListener('click',()=>copyText($(`#${b.dataset.copy}`).textContent))); }
 
