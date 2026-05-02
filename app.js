@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.2.7-sem-toque-longo';
-const VERSION_LABEL = 'v1.2.7';
-const VERSION_CHANGE = 'Toque longo removido para evitar conflito com seleção/menu do celular. Agora, no Álbum e no Modo rápido, um toque adiciona +1 e toque duplo rápido zera a figurinha.';
+const VERSION = '1.2.8-ordem-fora-busca';
+const VERSION_LABEL = 'v1.2.8';
+const VERSION_CHANGE = 'A chave de organização das seleções foi movida para fora da área de filtros, melhorando a leitura e o acesso tanto no Início/Álbum quanto no Modo rápido.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -438,7 +438,7 @@ function renderHome(){
       <button id="filterDrawerToggle" class="drawer-toggle" type="button" aria-expanded="false">
         <span>
           <small class="label">Filtros do álbum</small>
-          <strong>Buscar e organizar seleções</strong>
+          <strong>Buscar seleções</strong>
         </span>
         <b class="drawer-chevron">⌄</b>
       </button>
@@ -458,14 +458,6 @@ function renderHome(){
               <option value="duplicate">Repetidas</option>
             </select>
             <button id="clearFilters" class="btn">Limpar</button>
-          </div>
-          <div class="album-sort-row">
-            <span class="muted">Organizar seleções</span>
-            <button id="sortModeBtn" class="sort-switch dual-sort-switch" type="button" aria-pressed="false">
-              <span class="sort-option sort-album">Ordem do álbum</span>
-              <span class="switch-track"><i></i></span>
-              <span class="sort-option sort-alpha">Ordem alfabética</span>
-            </button>
           </div>
         </div>
       </div>
@@ -677,11 +669,14 @@ function renderQuickView(){
         <select id="quickStatusFilter"><option value="">Todas</option><option value="missing">Só faltantes</option><option value="duplicate">Só repetidas</option><option value="owned">Só tenho</option></select>
         <input id="quickSearch" class="search" type="search" placeholder="Buscar seleção ou sigla: BRA, Brasil...">
       </div>
+    </section>
+    <section class="card sort-card">
       <div class="album-sort-row quick-sort-row">
         <span class="muted">Organizar seleções</span>
         <button id="quickSortModeBtn" class="sort-switch dual-sort-switch" type="button" aria-pressed="false"><span class="sort-option sort-album">Ordem do álbum</span><span class="switch-track"><i></i></span><span class="sort-option sort-alpha">Ordem alfabética</span></button>
       </div>
     </section>
+
     <div id="quickSectionList" class="quick-sections"></div>`;
 
   const sync = () => renderQuickSections();

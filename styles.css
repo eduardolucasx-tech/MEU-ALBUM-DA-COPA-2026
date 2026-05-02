@@ -1716,3 +1716,21 @@ textarea{
   touch-action:manipulation;
   -webkit-touch-callout:none !important;
 }
+
+
+/* v1.2.8 - organização fora dos filtros */
+.sort-card{
+  padding:14px 16px;
+  margin-top:12px;
+}
+.sort-card .album-sort-row,
+.sort-card .quick-sort-row{
+  margin:0;
+}
+.sort-card .muted{
+  font-size:.82rem;
+}
+.filter-drawer-card .drawer-inner .album-sort-row,
+.filters .album-sort-row{
+  display:none !important;
+}
