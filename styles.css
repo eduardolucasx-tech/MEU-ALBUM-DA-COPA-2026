@@ -1752,3 +1752,43 @@ textarea{
 .quick-help-card p + p{
   margin-top:10px;
 }
+
+
+/* v1.2.11 - perfil enxuto */
+.profile-collector-panel{
+  display:grid;
+  gap:14px;
+}
+.collector-summary-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:12px 0 4px;
+}
+.profile-collector-panel .compact-stats{
+  margin-top:12px;
+}
+.profile-collector-panel .compact-mini-list{
+  margin-top:4px;
+}
+.profile-collector-panel .mini-list .row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--line);
+}
+.profile-collector-panel .mini-list .row small{
+  display:block;
+  color:var(--muted);
+  margin-top:2px;
+}
+@media(min-width:760px){
+  .profile-collector-panel{
+    grid-template-columns:1.4fr auto;
+    align-items:start;
+  }
+}

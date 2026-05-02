@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.2.10-fix-sort-home';
-const VERSION_LABEL = 'v1.2.10';
-const VERSION_CHANGE = 'Correção da aba Álbum/Início: a chave de ordenação voltou a aparecer corretamente fora da área de busca/filtros. Mantido o “Como usar?” em gaveta no modo rápido.';
+const VERSION = '1.2.11-perfil-enxuto';
+const VERSION_LABEL = 'v1.2.11';
+const VERSION_CHANGE = 'Perfil reorganizado: as estatísticas agora ficam dentro do Painel do Colecionador, com menos redundância e leitura mais limpa. A chave de ordenação da Home segue visível fora da busca.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1125,17 +1125,96 @@ function bindSettingsHub(){
   }));
 }
 
-function renderProfile(){ const s=stats(); const level=collectorLevel(s.progress); const email=cloud.user?.email || ''; $('#view-profile').innerHTML = `<section class="card hero" style="--p:${Math.round(s.progress*100)}%"><div><span class="label">Colecionador</span><h2>${escapeHtml(level.name)}</h2><p>${escapeHtml(level.desc)}</p><p class="muted">${s.owned} figurinhas coladas · ${s.duplicates} repetidas · ${s.completeTeams} seleções completas.</p></div><div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div></section>${profileStatsCards()}${renderEstimatePanel()}${renderFamilyCard()}${renderTipsCards()}${renderSettingsHub()}${renderAdsPlaceholder('perfil')}<section class="profile-grid"><div class="card"><span class="label">Sincronização</span><h3>${cloud.user?'Google conectado':'Modo local'}</h3><p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p><div class="button-row"><button class="btn primary" id="loginBtn">${cloud.user?'Trocar conta':'Entrar com Google'}</button><button class="btn" id="logoutBtn">Sair</button><button class="btn" id="syncNow">Sincronizar</button></div></div><div class="card"><span class="label">Backup</span><div class="button-row"><button class="btn" id="exportJson">Exportar JSON</button><label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label><button class="btn danger" id="resetAll">Zerar tudo</button></div></div>${renderShareCard()}<div class="card about-card"><span class="label">Sobre</span><h3>Meu Álbum da Copa 2026</h3><div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div><p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p><p class="muted">“Não sei nem como fiz, só sei que fiz!” VIVEIROS, Lucas.</p></div></section>`; bindEstimatePanel(); bindSettingsHub(); bindFamilyCard(); $('#loginBtn').addEventListener('click',signInCloud); $('#logoutBtn').addEventListener('click',signOutCloud); $('#syncNow').addEventListener('click',syncNow); $('#shareAppBtn')?.addEventListener('click', shareApp); $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('change',importJson); $('#resetAll').addEventListener('click',()=>{ if(confirm('Zerar toda a coleção?')){ state=emptyState(); saveState('Coleção zerada'); render(); }}); }
+function renderProfile(){
+  const s = stats();
+  const level = collectorLevel(s.progress);
+  const email = cloud.user?.email || '';
+  const ranked = ranking();
+  const mostComplete = ranked[0];
+  const leastComplete = [...ranked].reverse().find(t => sectionStats(t).owned < sectionStats(t).total) || ranked[ranked.length-1];
+  const topDup = albumItems.filter(i=>qty(i.id)>1).sort((a,b)=>extras(b)-extras(a)).slice(0,3);
 
-function copyText(text){ navigator.clipboard?.writeText(text).then(()=>toast('Copiado!')).catch(()=>toast('Não consegui copiar.')); }
-function exportJson(){ const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='meu-album-copa-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
-async function importJson(e){ const file=e.target.files?.[0]; if(!file) return; try{ state=normalizeState(JSON.parse(await file.text())); saveState('Backup importado'); render(); toast('Backup importado.'); }catch(err){ toast('Arquivo inválido.'); } }
-function toast(msg){
-  const el=$('#toast');
-  el.innerHTML = escapeHtml(msg);
-  el.classList.add('show');
-  clearTimeout(toast.t);
-  toast.t=setTimeout(()=>el.classList.remove('show'),2200);
+  $('#view-profile').innerHTML = `
+    <section class="card hero profile-collector-panel" style="--p:${Math.round(s.progress*100)}%">
+      <div>
+        <span class="label">Painel do colecionador</span>
+        <h2>${escapeHtml(level.name)}</h2>
+        <p class="muted">${escapeHtml(level.desc)}</p>
+
+        <div class="collector-summary-row">
+          <span class="pill soft">${s.owned} coladas</span>
+          <span class="pill soft">${s.duplicates} repetidas</span>
+          <span class="pill soft">${s.completeTeams} seleções completas</span>
+        </div>
+
+        <div class="stats-grid compact-stats">
+          <div class="stat-tile"><strong>${s.completeTeams}</strong><span>seleções completas</span></div>
+          <div class="stat-tile"><strong>${escapeHtml(mostComplete?.code || '-')}</strong><span>mais avançada</span></div>
+          <div class="stat-tile"><strong>${escapeHtml(leastComplete?.code || '-')}</strong><span>mais atrasada</span></div>
+          <div class="stat-tile"><strong>${topDup.length ? escapeHtml(topDup[0].ref) : '-'}</strong><span>top repetida</span></div>
+        </div>
+
+        <div class="mini-list compact-mini-list">
+          ${topDup.length ? topDup.map(i=>`<div class="row"><div><strong>${escapeHtml(i.ref)}</strong><small>${escapeHtml(stickerDisplayName(i))}</small></div><b>+${extras(i)}</b></div>`).join('') : '<div class="empty">Sem repetidas ainda.</div>'}
+        </div>
+      </div>
+      <div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div>
+    </section>
+
+    ${renderEstimatePanel()}
+    ${renderFamilyCard()}
+    ${renderTipsCards()}
+    ${renderSettingsHub()}
+    ${renderAdsPlaceholder('perfil')}
+
+    <section class="profile-grid">
+      <div class="card">
+        <span class="label">Sincronização</span>
+        <h3>${cloud.user ? 'Google conectado' : 'Modo local'}</h3>
+        <p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p>
+        <div class="button-row">
+          <button class="btn primary" id="loginBtn">${cloud.user ? 'Trocar conta' : 'Entrar com Google'}</button>
+          <button class="btn" id="logoutBtn">Sair</button>
+          <button class="btn" id="syncNow">Sincronizar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <span class="label">Backup</span>
+        <div class="button-row">
+          <button class="btn" id="exportJson">Exportar JSON</button>
+          <label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label>
+          <button class="btn danger" id="resetAll">Zerar tudo</button>
+        </div>
+      </div>
+
+      ${renderShareCard()}
+
+      <div class="card about-card">
+        <span class="label">Sobre</span>
+        <h3>Meu Álbum da Copa 2026</h3>
+        <div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div>
+        <p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p>
+        <p class="muted">“Não sei nem como fiz, só sei que fiz!” VIVEIROS, Lucas.</p>
+      </div>
+    </section>`;
+
+  bindEstimatePanel();
+  bindSettingsHub();
+  bindFamilyCard();
+  $('#loginBtn').addEventListener('click', signInCloud);
+  $('#logoutBtn').addEventListener('click', signOutCloud);
+  $('#syncNow').addEventListener('click', syncNow);
+  $('#shareAppBtn')?.addEventListener('click', shareApp);
+  $('#exportJson').addEventListener('click', exportJson);
+  $('#importJson').addEventListener('change', importJson);
+  $('#resetAll').addEventListener('click', () => {
+    if(confirm('Zerar toda a coleção?')){
+      state = emptyState();
+      saveState('Coleção zerada');
+      render();
+    }
+  });
 }
 function toastAction(msg, actionLabel, action){
   const el=$('#toast');
