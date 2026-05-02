@@ -1734,3 +1734,21 @@ textarea{
 .filters .album-sort-row{
   display:none !important;
 }
+
+
+/* v1.2.9 - modo rápido com gaveta de ajuda */
+.quick-help-card .drawer-panel{
+  max-height:0;
+}
+.quick-help-card.open .drawer-panel{
+  max-height:320px;
+}
+.quick-help-card .drawer-inner{
+  padding-top:4px;
+}
+.quick-help-card .quick-legend{
+  margin-bottom:12px;
+}
+.quick-help-card p + p{
+  margin-top:10px;
+}

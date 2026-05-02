@@ -1,13 +1,14 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.2.8-ordem-fora-busca';
-const VERSION_LABEL = 'v1.2.8';
-const VERSION_CHANGE = 'A chave de organização das seleções foi movida para fora da área de filtros, melhorando a leitura e o acesso tanto no Início/Álbum quanto no Modo rápido.';
+const VERSION = '1.2.10-fix-sort-home';
+const VERSION_LABEL = 'v1.2.10';
+const VERSION_CHANGE = 'Correção da aba Álbum/Início: a chave de ordenação voltou a aparecer corretamente fora da área de busca/filtros. Mantido o “Como usar?” em gaveta no modo rápido.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
 const FAMILY_COLLECTION = 'meu_album_copa_v1_family_albums';
 const OPEN_SECTIONS_KEY = 'meu-album-copa-open-sections';
 const ONBOARDING_KEY = 'meu-album-copa-onboarding-v1';
+const QUICK_HELP_KEY = 'meu-album-copa-quick-help-open-v1';
 const $ = (sel, ctx=document) => ctx.querySelector(sel);
 const $$ = (sel, ctx=document) => [...ctx.querySelectorAll(sel)];
 
@@ -463,6 +464,17 @@ function renderHome(){
       </div>
     </section>
 
+    <section class="card sort-card">
+      <div class="album-sort-row">
+        <span class="muted">Organizar seleções</span>
+        <button id="sortModeBtn" class="sort-switch dual-sort-switch" type="button" aria-pressed="false">
+          <span class="sort-option sort-album">Ordem do álbum</span>
+          <span class="switch-track"><i></i></span>
+          <span class="sort-option sort-alpha">Ordem alfabética</span>
+        </button>
+      </div>
+    </section>
+
     <div id="teamList" class="team-list"></div>`;
 
   const sync = () => renderTeamList();
@@ -655,15 +667,30 @@ function bindStickerActions(ctx=document){
 
 function renderQuickView(){
   const groups = [...new Set(window.ALBUM_DATA.teams.map(t => t.group))];
+  const helpOpen = localStorage.getItem(QUICK_HELP_KEY) === '1';
   $('#view-quick').innerHTML = `
-    <section class="card">
-      <span class="label">Legenda da visualização rápida</span>
-      <div class="quick-legend">
-        <span class="legend-item"><i class="legend-box quick missing"></i> Faltante</span>
-        <span class="legend-item"><i class="legend-box quick owned"></i> Tenho</span>
-        <span class="legend-item"><i class="legend-box quick duplicate"></i> Tenho repetida</span>
+    <section class="card filter-drawer-card quick-help-card ${helpOpen ? 'open' : ''}">
+      <button id="quickHelpToggle" class="drawer-toggle" type="button" aria-expanded="${helpOpen ? 'true' : 'false'}">
+        <span>
+          <small class="label">Visual rápido</small>
+          <strong>Como usar?</strong>
+        </span>
+        <b class="drawer-chevron">⌄</b>
+      </button>
+      <div class="drawer-panel">
+        <div class="drawer-inner">
+          <div class="quick-legend">
+            <span class="legend-item"><i class="legend-box quick missing"></i> Faltante</span>
+            <span class="legend-item"><i class="legend-box quick owned"></i> Tenho</span>
+            <span class="legend-item"><i class="legend-box quick duplicate"></i> Tenho repetida</span>
+          </div>
+          <p class="muted">Nesta aba, cada quadrado mostra só o número da figurinha. Preto com número dourado = falta. Dourado com número preto = tenho. Dourado com ponto preto = tenho repetida.</p>
+          <p class="muted">Toque uma vez para adicionar +1. Toque duplo rápido para zerar a figurinha.</p>
+        </div>
       </div>
-      <p class="muted">Nesta aba, cada quadrado mostra só o número da figurinha. Preto com número dourado = falta. Dourado com número preto = tenho. Dourado com ponto preto = tenho repetida.</p>
+    </section>
+
+    <section class="card">
       <div class="filters quick-filters">
         <select id="quickGroupFilter"><option value="">Todos os grupos</option>${groups.map(g=>`<option value="${g}">Grupo ${g}</option>`).join('')}<option value="EXTRAS">Extras</option></select>
         <select id="quickStatusFilter"><option value="">Todas</option><option value="missing">Só faltantes</option><option value="duplicate">Só repetidas</option><option value="owned">Só tenho</option></select>
@@ -678,6 +705,14 @@ function renderQuickView(){
     </section>
 
     <div id="quickSectionList" class="quick-sections"></div>`;
+
+  $('#quickHelpToggle')?.addEventListener('click', ()=>{
+    const card = $('.quick-help-card');
+    const open = !card.classList.contains('open');
+    card.classList.toggle('open', open);
+    $('#quickHelpToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+    localStorage.setItem(QUICK_HELP_KEY, open ? '1' : '0');
+  });
 
   const sync = () => renderQuickSections();
   $('#quickGroupFilter')?.addEventListener('change', sync);
