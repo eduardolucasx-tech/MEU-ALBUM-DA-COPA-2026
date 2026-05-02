@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.3.4-texto-como-usar-atualizado';
-const VERSION_LABEL = 'v1.3.4';
-const VERSION_CHANGE = 'Texto do “Como usar?” no Visual rápido atualizado para refletir o novo gesto: toque simples adiciona e toque longo zera a figurinha.';
+const VERSION = '1.4.2-proposta-sem-pontos';
+const VERSION_LABEL = 'v1.4.2';
+const VERSION_CHANGE = 'Proposta de troca ajustada: figurinhas especiais continuam destacadas, mas sem pontuação/valor automático. A decisão de equivalência fica totalmente manual para o usuário.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -785,7 +785,7 @@ function renderQuickView(){
             <span class="legend-item"><i class="legend-box quick duplicate"></i> Tenho repetida</span>
           </div>
           <p class="muted">Nesta aba, cada quadrado mostra só o número da figurinha. Preto com número dourado = falta. Dourado com número preto = tenho. Dourado com ponto preto = tenho repetida.</p>
-          <p class="muted">Toque uma vez para adicionar +1. Toque longo para zerar a figurinha.</p>
+          <p class="muted">Toque uma vez para adicionar +1. Toque longo para zerar. No celular, segure até sentir/visualizar o retorno e solte.</p>
 
           <div class="quick-inline-filters">
             <span class="label">Filtros rápidos</span>
@@ -1017,6 +1017,195 @@ function formatList(filter, mode='default'){
   });
   return rows.join('\n').trim() || 'Nada por aqui ainda.';
 }
+
+
+function parseRefsFromText(raw){
+  const text = String(raw || '').toUpperCase();
+  const found = [];
+  const seen = new Set();
+
+  const pushItem = (item) => {
+    if(!item || seen.has(item.id)) return;
+    seen.add(item.id);
+    found.push(item);
+  };
+
+  const tokens = text
+    .replace(/[•|]/g, ' ')
+    .split(/[\n,;]+/)
+    .map(v => v.trim())
+    .filter(Boolean);
+
+  tokens.forEach(token => {
+    const matches = findCandidates(token);
+    if(matches.length === 1) pushItem(matches[0]);
+  });
+
+  const re = /\b([A-Z]{2,4}|FWC|CC|PAN)\s*[-:]?\s*(\d{1,2})\b/g;
+  let m;
+  while((m = re.exec(text))){
+    const code = m[1];
+    const num = Number(m[2]);
+    const item = albumItems.find(i => (String(codeOf(i)).toUpperCase() === code || String(i.code).toUpperCase() === code) && Number(i.number) === num);
+    pushItem(item);
+  }
+
+  return found;
+}
+function isSpecialTradeSticker(item){
+  const code = String(codeOf(item) || item.code || '').toUpperCase();
+  return code === 'FWC' || Number(item.number) === 1 || Number(item.number) === 13 || item.type === 'especial';
+}
+
+
+function tradeListText(items, prefix='-'){
+  return items.length
+    ? items.map(i => `${prefix} ${i.ref} — ${stickerDisplayName(i)}${isSpecialTradeSticker(i) ? ' [ESPECIAL]' : ''}`).join('\\n')
+    : `${prefix} nada selecionado`;
+}
+function renderCompareTool(){
+  return `<section class="card compare-card">
+    <span class="label">Proposta de troca</span>
+    <h3>Monte uma troca estilo Steam</h3>
+    <p class="muted">Cole as listas da outra pessoa. Depois escolha manualmente quais figurinhas entram na proposta.</p>
+
+    <label class="compare-label">Repetidas da outra pessoa <small>O que ela pode te enviar</small></label>
+    <textarea id="otherDupInput" rows="4" placeholder="Ex.: BRA 10&#10;MEX 15&#10;FWC 01"></textarea>
+
+    <label class="compare-label">Faltantes da outra pessoa <small>O que ela precisa de você</small></label>
+    <textarea id="otherMissingInput" rows="4" placeholder="Ex.: RSA 04&#10;ARG 07&#10;BRA 13"></textarea>
+
+    <div class="button-row">
+      <button class="btn primary" id="runCompare" type="button">Gerar proposta</button>
+      <button class="btn" id="clearCompare" type="button">Limpar</button>
+    </div>
+
+    <div id="compareResult" class="compare-result empty">Cole as listas e toque em gerar proposta.</div>
+  </section>`;
+}
+function renderProposalItem(item, side, checked=true){
+  const special = isSpecialTradeSticker(item);
+  return `<label class="proposal-item ${special ? 'special' : ''}">
+    <input type="checkbox" data-proposal-${side}="${escapeAttr(item.id)}" ${checked ? 'checked' : ''}>
+    <span>
+      <strong>${escapeHtml(item.ref)}</strong>
+      <small>${escapeHtml(stickerDisplayName(item))}</small>
+    </span>
+    <b>${special ? 'Especial' : 'Normal'}<em>${special ? 'destaque' : 'comum'}</em></b>
+  </label>`;
+}
+function renderCompareResultFromFields(){
+  const otherDupItems = parseRefsFromText($('#otherDupInput')?.value || '');
+  const otherMissingItems = parseRefsFromText($('#otherMissingInput')?.value || '');
+
+  const receiveCandidates = otherDupItems.filter(i => qty(i.id) === 0);
+  const sendCandidates = otherMissingItems.filter(i => qty(i.id) > 1);
+
+  $('#compareResult').classList.remove('empty');
+  $('#compareResult').innerHTML = `
+    <div class="proposal-summary">
+      <div><strong id="receiveCount">${receiveCandidates.length}</strong><span>possíveis para você receber</span></div>
+      <div><strong id="sendCount">${sendCandidates.length}</strong><span>possíveis para você enviar</span></div>
+      <div><strong id="specialCount">0</strong><span>especiais selecionadas</span></div>
+    </div>
+
+    <div class="proposal-grid">
+      <div class="proposal-box receive">
+        <h4>Você recebe</h4>
+        <p class="muted">Ela tem repetida e está faltando para você.</p>
+        <div class="proposal-list" id="receiveProposalList">
+          ${receiveCandidates.length ? receiveCandidates.map(i=>renderProposalItem(i,'receive',true)).join('') : '<div class="empty">Nada cruzou aqui.</div>'}
+        </div>
+      </div>
+
+      <div class="proposal-box send">
+        <h4>Você envia</h4>
+        <p class="muted">Você tem repetida e ela precisa.</p>
+        <div class="proposal-list" id="sendProposalList">
+          ${sendCandidates.length ? sendCandidates.map(i=>renderProposalItem(i,'send',true)).join('') : '<div class="empty">Nada cruzou aqui.</div>'}
+        </div>
+      </div>
+    </div>
+
+    <div class="proposal-extra-card">
+      <span class="label">Adicionar manualmente</span>
+      <div class="proposal-extra-grid">
+        <input id="manualReceiveInput" class="search" placeholder="Adicionar ao que recebo. Ex.: FWC 01">
+        <button class="btn" id="manualReceiveBtn" type="button">Adicionar em recebo</button>
+        <input id="manualSendInput" class="search" placeholder="Adicionar ao que envio. Ex.: BRA 13">
+        <button class="btn" id="manualSendBtn" type="button">Adicionar em envio</button>
+      </div>
+    </div>
+
+    <div class="button-row compare-copy-row">
+      <button class="btn primary" id="copyProposal" type="button">Copiar proposta completa</button>
+      <button class="btn" id="copyProposalShort" type="button">Copiar resumo</button>
+    </div>`;
+
+  function selectedItems(side){
+    return $$(`[data-proposal-${side}]`)
+      .filter(el => el.checked)
+      .map(el => itemById(el.dataset[`proposal${side[0].toUpperCase()+side.slice(1)}`]))
+      .filter(Boolean);
+  }
+
+  function updateSummary(){
+    const receive = selectedItems('receive');
+    const send = selectedItems('send');
+    const specialTotal = [...receive, ...send].filter(isSpecialTradeSticker).length;
+    $('#receiveCount').textContent = receive.length;
+    $('#sendCount').textContent = send.length;
+    $('#specialCount').textContent = specialTotal;
+  }
+  function bindChecks(){
+    $$('[data-proposal-receive], [data-proposal-send]').forEach(el => el.addEventListener('change', updateSummary));
+  }
+
+  function addManual(side){
+    const input = side === 'receive' ? $('#manualReceiveInput') : $('#manualSendInput');
+    const list = side === 'receive' ? $('#receiveProposalList') : $('#sendProposalList');
+    const match = findCandidates(input.value || '')[0];
+    if(!match) return toast('Não encontrei essa figurinha.');
+    const empty = list.querySelector('.empty');
+    if(empty) empty.remove();
+    list.insertAdjacentHTML('beforeend', renderProposalItem(match, side, true));
+    input.value = '';
+    bindChecks();
+    updateSummary();
+  }
+
+  $('#manualReceiveBtn')?.addEventListener('click', () => addManual('receive'));
+  $('#manualSendBtn')?.addEventListener('click', () => addManual('send'));
+
+  $('#copyProposal')?.addEventListener('click', () => {
+    const receive = selectedItems('receive');
+    const send = selectedItems('send');
+    copyText(`Proposta de troca:\n\nEu recebo:\n${tradeListText(receive)}\n\nEu envio:\n${tradeListText(send)}\n\nObservação:\nFigurinhas marcadas como [ESPECIAL] foram apenas destacadas. A equivalência da troca fica a combinar.`);
+  });
+
+  $('#copyProposalShort')?.addEventListener('click', () => {
+    const receive = selectedItems('receive');
+    const send = selectedItems('send');
+    const specialTotal = [...receive, ...send].filter(isSpecialTradeSticker).length;
+    copyText(`Troca: recebo ${receive.length} e envio ${send.length}. Especiais destacadas: ${specialTotal}.`);
+  });
+
+  bindChecks();
+  updateSummary();
+}
+function bindCompareTool(){
+  $('#runCompare')?.addEventListener('click', renderCompareResultFromFields);
+  $('#clearCompare')?.addEventListener('click', () => {
+    $('#otherDupInput').value = '';
+    $('#otherMissingInput').value = '';
+    const result = $('#compareResult');
+    if(result){
+      result.className = 'compare-result empty';
+      result.textContent = 'Cole as listas e toque em gerar proposta.';
+    }
+  });
+}
+
 function renderTrades(){
   const statusOptions = ['Disponível','Em negociação','Reservada','Concluída'];
   const normalizeTradeStatus = (value) => {
@@ -1055,12 +1244,14 @@ function renderTrades(){
 
     <section class="card trade-summary-card">
       <span class="label">Resumo para WhatsApp</span>
-      <p class="muted">Listas formatadas por seleção para mandar no grupo.</p>
+      <p class="muted">Listas formatadas por seleção para mandar no grupo. Use também a comparação abaixo para cruzar listas.</p>
       <div class="button-row trade-actions">
         <button class="btn primary" id="copyDup">Copiar repetidas</button>
         <button class="btn" id="copyMissing">Copiar faltantes</button>
       </div>
     </section>
+
+    ${renderCompareTool()}
 
     <section class="card trade-manager-card">
       <span class="label">Gestão de trocas</span>
@@ -1082,6 +1273,7 @@ function renderTrades(){
 ${formatList(i=>qty(i.id)>1,'dup')}`));
   $('#copyMissing').addEventListener('click',()=>copyText(`📌 Faltantes:
 ${formatList(i=>qty(i.id)===0)}`));
+  bindCompareTool();
 
   const searchEl = $('#tradeSearch');
   const statusEl = $('#tradeStatusFilter');
@@ -1491,7 +1683,7 @@ function renderProfile(){
   $('#exportJson').addEventListener('click', exportJson);
   $('#importJson').addEventListener('change', importJson);
   $('#resetAll').addEventListener('click', () => {
-    if(confirm('Zerar toda a coleção?')){
+    if(confirm('Zerar toda a coleção? Essa ação apaga suas marcações neste álbum ativo.')){
       state = emptyState();
       saveState('Coleção zerada');
       render();
