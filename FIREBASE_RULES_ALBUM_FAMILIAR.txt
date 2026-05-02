@@ -1,0 +1,42 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Álbum pessoal: cada usuário lê/escreve somente o próprio documento.
+    match /meu_album_copa_v1_users/{userId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == userId;
+    }
+
+    // Álbum Familiar:
+    // - o dono pode criar;
+    // - membros cadastrados podem ler e editar;
+    // - usuário autenticado pode entrar usando o código se estiver adicionando a si mesmo em members.
+    match /meu_album_copa_v1_family_albums/{albumId} {
+      allow create: if request.auth != null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.inviteCode == albumId
+        && request.resource.data.members[request.auth.uid].uid == request.auth.uid;
+
+      allow read: if request.auth != null
+        && resource.data.members[request.auth.uid].uid == request.auth.uid;
+
+      allow update: if request.auth != null && (
+        // membros existentes podem editar o álbum
+        resource.data.members[request.auth.uid].uid == request.auth.uid
+
+        ||
+
+        // entrada por convite: usuário autenticado só pode adicionar a si mesmo ao mapa members
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
+          && request.resource.data.members[request.auth.uid].uid == request.auth.uid
+        )
+      );
+
+      allow delete: if request.auth != null
+        && resource.data.ownerUid == request.auth.uid;
+    }
+  }
+}

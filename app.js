@@ -1,10 +1,11 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.1.5-saudacoes-narracao';
-const VERSION_LABEL = 'v1.1.5';
-const VERSION_CHANGE = 'Saudações da Home ampliadas com frases inspiradas em narrações de futebol e bordões de Copa, personalizadas com o primeiro nome da conta Google.';
+const VERSION = '1.2.0-album-familiar';
+const VERSION_LABEL = 'v1.2.0';
+const VERSION_CHANGE = 'Álbum Familiar implementado: crie um álbum compartilhado, entre com código de convite, alterne entre álbum pessoal e familiar, compartilhe o convite e sincronize em tempo real entre contas Google diferentes.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
+const FAMILY_COLLECTION = 'meu_album_copa_v1_family_albums';
 const OPEN_SECTIONS_KEY = 'meu-album-copa-open-sections';
 const ONBOARDING_KEY = 'meu-album-copa-onboarding-v1';
 const $ = (sel, ctx=document) => ctx.querySelector(sel);
@@ -139,6 +140,9 @@ function homeTitle(){
 let cloud = { ready:false, auth:null, db:null, provider:null, user:null, loading:false };
 let syncTimer = null;
 let cloudUnsubscribe = null;
+let activeAlbumMode = localStorage.getItem('meu-album-copa-active-mode') || 'personal';
+let familyAlbumId = localStorage.getItem('meu-album-copa-family-id') || '';
+let familyAlbumMeta = null;
 let applyingRemoteState = false;
 let lastCloudServerMs = 0;
 let packSession = [];
@@ -195,7 +199,7 @@ function ensureDefaultOpenSections(sections){
 function onboardingSeen(){ return localStorage.getItem(ONBOARDING_KEY) === '1'; }
 function markOnboardingSeen(){ localStorage.setItem(ONBOARDING_KEY, '1'); }
 function syncLabel(){ return cloud.user ? 'Google conectado' : 'Modo local'; }
-function syncHint(){ return cloud.user ? 'Sincronização em tempo real ativa' : 'Seus dados estão salvos neste aparelho'; }
+function syncHint(){ return cloud.user ? `${activeAlbumLabel()} · sincronização em tempo real ativa` : 'Seus dados estão salvos neste aparelho'; }
 function googleReminderCard(){
   if(cloud.user) return '';
   return `<section class="card google-reminder-card">
@@ -266,16 +270,13 @@ function bindQuickActions(scope=document){
   const DOUBLE_TAP_MS = 280;
   $$('[data-quick-id]', scope).forEach(el => {
     let lastTap = 0;
-    let singleTapTimer = null;
 
-    el.addEventListener('click', ev => {
+    el.addEventListener('pointerup', ev => {
       ev.preventDefault();
       const now = Date.now();
       const id = el.dataset.quickId;
 
       if(now - lastTap < DOUBLE_TAP_MS){
-        clearTimeout(singleTapTimer);
-        singleTapTimer = null;
         lastTap = 0;
         quickClear(id);
         el.classList.add('double-tap');
@@ -284,10 +285,9 @@ function bindQuickActions(scope=document){
       }
 
       lastTap = now;
-      singleTapTimer = setTimeout(() => {
-        quickAddOne(id);
-        singleTapTimer = null;
-      }, DOUBLE_TAP_MS + 20);
+      quickAddOne(id);
+      el.classList.add('tap-feedback');
+      setTimeout(() => el.classList.remove('tap-feedback'), 120);
     });
 
     el.addEventListener('contextmenu', ev => ev.preventDefault());
@@ -379,7 +379,7 @@ function renderHome(){
 
     <section class="card status-card">
       <div class="status-strip">
-        <span class="sync-badge ${cloud.user ? 'cloud' : 'local'}">${escapeHtml(syncLabel())}</span>
+        <span class="sync-badge ${cloud.user ? 'cloud' : 'local'}">${escapeHtml(syncLabel())}</span><span class="sync-badge mode">${escapeHtml(activeAlbumLabel())}</span>
         <small>${escapeHtml(syncHint())}</small>
       </div>
       <div class="status-subline">Última atualização local: ${escapeHtml(formatUpdatedAt(state.updatedAt))}</div>
@@ -409,26 +409,39 @@ function renderHome(){
       </div>
     </section>` : ''}
 
-    <section class="card">
-      <span class="label">Filtros do álbum</span>
-      <div class="filters">
-        <input id="albumSearch" class="search" type="search" placeholder="Buscar: BRA 10, Brasil, Vini Jr, falta...">
-        <select id="groupFilter">
-          <option value="">Todos os grupos</option>
-          ${groups.map(g=>`<option value="${g}">Grupo ${g}</option>`).join('')}
-          <option value="EXTRAS">Extras</option>
-        </select>
-        <select id="statusFilter">
-          <option value="">Todos status</option>
-          <option value="missing">Faltantes</option>
-          <option value="owned">Tenho</option>
-          <option value="duplicate">Repetidas</option>
-        </select>
-        <button id="clearFilters" class="btn">Limpar</button>
-      </div>
-      <div class="album-sort-row">
-        <span class="muted">Organizar seleções</span>
-        <button id="sortModeBtn" class="btn sort-btn" type="button"></button>
+    <section class="card filter-drawer-card">
+      <button id="filterDrawerToggle" class="drawer-toggle" type="button" aria-expanded="false">
+        <span>
+          <small class="label">Filtros do álbum</small>
+          <strong>Buscar e organizar seleções</strong>
+        </span>
+        <b class="drawer-chevron">⌄</b>
+      </button>
+      <div id="filterDrawerPanel" class="drawer-panel">
+        <div class="drawer-inner">
+          <div class="filters">
+            <input id="albumSearch" class="search" type="search" placeholder="Buscar: BRA 10, Brasil, Vini Jr, falta...">
+            <select id="groupFilter">
+              <option value="">Todos os grupos</option>
+              ${groups.map(g=>`<option value="${g}">Grupo ${g}</option>`).join('')}
+              <option value="EXTRAS">Extras</option>
+            </select>
+            <select id="statusFilter">
+              <option value="">Todos status</option>
+              <option value="missing">Faltantes</option>
+              <option value="owned">Tenho</option>
+              <option value="duplicate">Repetidas</option>
+            </select>
+            <button id="clearFilters" class="btn">Limpar</button>
+          </div>
+          <div class="album-sort-row">
+            <span class="muted">Organizar seleções</span>
+            <button id="sortModeBtn" class="sort-switch" type="button" aria-pressed="false">
+              <span class="switch-track"><i></i></span>
+              <b>Ordem do álbum</b>
+            </button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -453,6 +466,12 @@ function renderHome(){
     $('#teamList')?.scrollIntoView({behavior:'smooth', block:'start'});
   }));
   $('#homeGoogleLogin')?.addEventListener('click', signInCloud);
+  $('#filterDrawerToggle')?.addEventListener('click', () => {
+    const card = $('#filterDrawerToggle').closest('.filter-drawer-card');
+    const open = !card.classList.contains('open');
+    card.classList.toggle('open', open);
+    $('#filterDrawerToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
   $('#sortModeBtn')?.addEventListener('click', () => {
     albumSortMode = albumSortMode === 'album' ? 'alpha' : 'album';
     localStorage.setItem('meu-album-copa-sort-mode', albumSortMode);
@@ -480,12 +499,18 @@ function sortedSectionsForAlbum(){
   }
   return list;
 }
-function updateSortButton(){
-  const btn = $('#sortModeBtn');
+function applySortSwitch(btn){
   if(!btn) return;
-  btn.textContent = albumSortMode === 'alpha' ? 'Ordem alfabética' : 'Ordem do álbum';
+  const alpha = albumSortMode === 'alpha';
+  btn.classList.toggle('is-alpha', alpha);
+  btn.setAttribute('aria-pressed', alpha ? 'true' : 'false');
+  const label = btn.querySelector('b');
+  if(label) label.textContent = alpha ? 'Ordem alfabética' : 'Ordem do álbum';
+  else btn.textContent = alpha ? 'Ordem alfabética' : 'Ordem do álbum';
   btn.title = 'Clique para alternar a organização';
 }
+function updateSortButton(){ applySortSwitch($('#sortModeBtn')); }
+function updateQuickSortButton(){ applySortSwitch($('#quickSortModeBtn')); }
 function updateChips(){}
 function matchItem(item, q, status){ const hay = `${item.ref} ${item.code} ${item.section} ${item.name} ${item.type} ${statusLabel(item)} ${item.group}`.toLowerCase(); return (!q || hay.includes(q)) && (!status || statusOf(item) === status); }
 function renderTeamList(){
@@ -500,7 +525,7 @@ function renderTeamList(){
   if(!Array.isArray(sections) || !sections.length) sections = SECTION_LIST;
   sections = sections.filter(sec => sec && (!group || sec.group === group));
 
-  if(!q && !group && !status) ensureDefaultOpenSections(sections);
+  // v1.1.8: Home inicia com todas as seleções fechadas.
 
   const cards = [];
   for(const sec of sections){
@@ -588,11 +613,11 @@ function bindStickerActions(ctx=document){
 
   $$('[data-toggle]',ctx).forEach(b=>{
     let lastTap = 0;
-    let singleTapTimer = null;
 
-    b.addEventListener('click',ev=>{
+    b.addEventListener('pointerup',ev=>{
       ev.preventDefault();
       ev.stopPropagation();
+
       const id = b.dataset.toggle;
       const item = itemById(id);
       if(!item) return;
@@ -600,8 +625,6 @@ function bindStickerActions(ctx=document){
       const now = Date.now();
 
       if(now - lastTap < DOUBLE_TAP_MS){
-        clearTimeout(singleTapTimer);
-        singleTapTimer = null;
         lastTap = 0;
         setQty(id, 0, `${item.ref} zerada`);
         const card = b.closest('.sticker');
@@ -611,28 +634,27 @@ function bindStickerActions(ctx=document){
       }
 
       lastTap = now;
-      singleTapTimer = setTimeout(()=>{
-        addQty(id, 1);
-        singleTapTimer = null;
-      }, DOUBLE_TAP_MS + 20);
+      addQty(id, 1);
+      const card = b.closest('.sticker');
+      card?.classList.add('tap-feedback');
+      setTimeout(()=>card?.classList.remove('tap-feedback'), 120);
     });
 
     b.addEventListener('contextmenu', ev => ev.preventDefault());
   });
 
-  $$('[data-inc]',ctx).forEach(b=>b.addEventListener('click',ev=>{
+  $$('[data-inc]',ctx).forEach(b=>b.addEventListener('pointerup',ev=>{
     ev.preventDefault();
     ev.stopPropagation();
     addQty(b.dataset.inc,1);
   }));
 
-  $$('[data-dec]',ctx).forEach(b=>b.addEventListener('click',ev=>{
+  $$('[data-dec]',ctx).forEach(b=>b.addEventListener('pointerup',ev=>{
     ev.preventDefault();
     ev.stopPropagation();
     addQty(b.dataset.dec,-1);
   }));
 }
-
 
 function renderQuickView(){
   const groups = [...new Set(window.ALBUM_DATA.teams.map(t => t.group))];
@@ -650,6 +672,10 @@ function renderQuickView(){
         <select id="quickStatusFilter"><option value="">Todas</option><option value="missing">Só faltantes</option><option value="duplicate">Só repetidas</option><option value="owned">Só tenho</option></select>
         <input id="quickSearch" class="search" type="search" placeholder="Buscar seleção ou sigla: BRA, Brasil...">
       </div>
+      <div class="album-sort-row quick-sort-row">
+        <span class="muted">Organizar seleções</span>
+        <button id="quickSortModeBtn" class="sort-switch" type="button" aria-pressed="false"><span class="switch-track"><i></i></span><b>Ordem do álbum</b></button>
+      </div>
     </section>
     <div id="quickSectionList" class="quick-sections"></div>`;
 
@@ -657,6 +683,13 @@ function renderQuickView(){
   $('#quickGroupFilter')?.addEventListener('change', sync);
   $('#quickStatusFilter')?.addEventListener('change', sync);
   $('#quickSearch')?.addEventListener('input', sync);
+  $('#quickSortModeBtn')?.addEventListener('click', () => {
+    albumSortMode = albumSortMode === 'album' ? 'alpha' : 'album';
+    localStorage.setItem('meu-album-copa-sort-mode', albumSortMode);
+    updateQuickSortButton();
+    renderQuickSections();
+  });
+  updateQuickSortButton();
   renderQuickSections();
 }
 
@@ -664,7 +697,7 @@ function renderQuickSections(){
   const group = $('#quickGroupFilter')?.value || '';
   const query = ($('#quickSearch')?.value || '').trim().toLowerCase();
   const status = $('#quickStatusFilter')?.value || '';
-  const html = SECTION_LIST
+  const html = sortedSectionsForAlbum()
     .filter(sec => !group || sec.group === group)
     .filter(sec => {
       if(!query) return true;
@@ -831,7 +864,7 @@ function renderAdd(){
   setTimeout(()=>$('#addInput')?.focus(),30);
 }
 function addFromAdd(id){ const item = itemById(id); if(!item) return; addQty(id,1); packSession = [{ref:item.ref, name:stickerDisplayName(item)}, ...packSession].slice(0,50); renderPack(); renderAddResults(); }
-function renderAddResults(){ const raw=$('#addInput')?.value||''; const box=$('#addResults'); if(!box) return; if(!raw.trim()){ box.innerHTML='<div class="empty">Digite um código para começar.</div>'; return; } const candidates=findCandidates(raw); box.innerHTML = candidates.length ? candidates.map(i=>`<div class="row add-result compact"><div class="add-result-info"><strong>${escapeHtml(i.ref)} · ${escapeHtml(stickerDisplayName(i))}</strong><small>${escapeHtml(i.section)} · ${escapeHtml(typeLabel(i.type))} · ${statusLabel(i)} · qtd ${qty(i.id)}</small></div><div class="button-row add-actions"><button class="btn" data-adddec="${i.id}">−</button><button class="btn primary" data-addone="${i.id}">+1</button></div></div>`).join('') : '<div class="empty">Não encontrei esse código.</div>'; $$('[data-addone]',box).forEach(b=>b.addEventListener('click',()=>addFromAdd(b.dataset.addone))); $$('[data-adddec]',box).forEach(b=>b.addEventListener('click',()=>addQty(b.dataset.adddec,-1))); }
+function renderAddResults(){ const raw=$('#addInput')?.value||''; const box=$('#addResults'); if(!box) return; if(!raw.trim()){ box.innerHTML='<div class="empty">Digite um código para começar.</div>'; return; } const candidates=findCandidates(raw); box.innerHTML = candidates.length ? candidates.map(i=>`<div class="row add-result compact"><div class="add-result-info"><strong>${escapeHtml(i.ref)} · ${escapeHtml(stickerDisplayName(i))}</strong><small>${escapeHtml(i.section)} · ${escapeHtml(typeLabel(i.type))} · ${statusLabel(i)} · qtd ${qty(i.id)}</small></div><div class="button-row add-actions"><button class="btn" data-adddec="${i.id}">−</button><button class="btn primary" data-addone="${i.id}">+1</button></div></div>`).join('') : '<div class="empty">Não encontrei esse código.</div>'; $$('[data-addone]',box).forEach(b=>b.addEventListener('pointerup',ev=>{ev.preventDefault(); addFromAdd(b.dataset.addone);})); $$('[data-adddec]',box).forEach(b=>b.addEventListener('pointerup',ev=>{ev.preventDefault(); addQty(b.dataset.adddec,-1);})); }
 function renderPack(){ const box=$('#packList'); if(box) box.innerHTML = packSession.length ? packSession.map(p=>`<div class="row"><div><strong>${escapeHtml(p.ref)}</strong><small>${escapeHtml(p.name)}</small></div><b>+1</b></div>`).join('') : '<div class="empty">Nada lançado neste pacotinho ainda.</div>'; }
 
 function formatList(filter, mode='default'){
@@ -889,7 +922,43 @@ function profileStatsCards(){
   </section>`;
 }
 
-function renderProfile(){ const s=stats(); const level=collectorLevel(s.progress); const email=cloud.user?.email || ''; $('#view-profile').innerHTML = `<section class="card hero" style="--p:${Math.round(s.progress*100)}%"><div><span class="label">Colecionador</span><h2>${escapeHtml(level.name)}</h2><p>${escapeHtml(level.desc)}</p><p class="muted">${s.owned} figurinhas coladas · ${s.duplicates} repetidas · ${s.completeTeams} seleções completas.</p></div><div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div></section>${profileStatsCards()}<section class="profile-grid"><div class="card"><span class="label">Sincronização</span><h3>${cloud.user?'Google conectado':'Modo local'}</h3><p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p><div class="button-row"><button class="btn primary" id="loginBtn">${cloud.user?'Trocar conta':'Entrar com Google'}</button><button class="btn" id="logoutBtn">Sair</button><button class="btn" id="syncNow">Sincronizar</button></div></div><div class="card"><span class="label">Backup</span><div class="button-row"><button class="btn" id="exportJson">Exportar JSON</button><label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label><button class="btn danger" id="resetAll">Zerar tudo</button></div></div><div class="card about-card"><span class="label">Sobre</span><h3>Meu Álbum da Copa 2026</h3><div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div><p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p><p class="muted">Base preservada com ${albumItems.length} figurinhas.</p></div></section>`; $('#loginBtn').addEventListener('click',signInCloud); $('#logoutBtn').addEventListener('click',signOutCloud); $('#syncNow').addEventListener('click',syncNow); $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('change',importJson); $('#resetAll').addEventListener('click',()=>{ if(confirm('Zerar toda a coleção?')){ state=emptyState(); saveState('Coleção zerada'); render(); }}); }
+
+function appShareUrl(){
+  return location.origin || 'https://meu-album-da-copa-2026.vercel.app';
+}
+async function shareApp(){
+  const payload = {
+    title:'Meu Álbum da Copa 2026',
+    text:'Bora controlar as figurinhas da Copa comigo?',
+    url:appShareUrl()
+  };
+  try{
+    if(navigator.share){
+      await navigator.share(payload);
+      toast('App compartilhado!');
+      return;
+    }
+    await navigator.clipboard.writeText(payload.url);
+    toast('Link do app copiado!');
+  }catch(e){
+    try{
+      await navigator.clipboard.writeText(payload.url);
+      toast('Link do app copiado!');
+    }catch(err){
+      toast('Não consegui compartilhar agora.');
+    }
+  }
+}
+function renderShareCard(){
+  return `<section class="card share-card">
+    <span class="label">Compartilhar app</span>
+    <h3>Chama geral pro álbum</h3>
+    <p class="muted">Envie o link para quem também quer controlar figurinhas, repetidas e trocas.</p>
+    <button id="shareAppBtn" class="btn primary full" type="button">Compartilhar app</button>
+  </section>`;
+}
+
+function renderProfile(){ const s=stats(); const level=collectorLevel(s.progress); const email=cloud.user?.email || ''; $('#view-profile').innerHTML = `<section class="card hero" style="--p:${Math.round(s.progress*100)}%"><div><span class="label">Colecionador</span><h2>${escapeHtml(level.name)}</h2><p>${escapeHtml(level.desc)}</p><p class="muted">${s.owned} figurinhas coladas · ${s.duplicates} repetidas · ${s.completeTeams} seleções completas.</p></div><div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div></section>${profileStatsCards()}${renderFamilyCard()}<section class="profile-grid"><div class="card"><span class="label">Sincronização</span><h3>${cloud.user?'Google conectado':'Modo local'}</h3><p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p><div class="button-row"><button class="btn primary" id="loginBtn">${cloud.user?'Trocar conta':'Entrar com Google'}</button><button class="btn" id="logoutBtn">Sair</button><button class="btn" id="syncNow">Sincronizar</button></div></div><div class="card"><span class="label">Backup</span><div class="button-row"><button class="btn" id="exportJson">Exportar JSON</button><label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label><button class="btn danger" id="resetAll">Zerar tudo</button></div></div>${renderShareCard()}<div class="card about-card"><span class="label">Sobre</span><h3>Meu Álbum da Copa 2026</h3><div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div><p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p><p class="muted">Base preservada com ${albumItems.length} figurinhas.</p></div></section>`; bindFamilyCard(); $('#loginBtn').addEventListener('click',signInCloud); $('#logoutBtn').addEventListener('click',signOutCloud); $('#syncNow').addEventListener('click',syncNow); $('#shareAppBtn')?.addEventListener('click', shareApp); $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('change',importJson); $('#resetAll').addEventListener('click',()=>{ if(confirm('Zerar toda a coleção?')){ state=emptyState(); saveState('Coleção zerada'); render(); }}); }
 
 function copyText(text){ navigator.clipboard?.writeText(text).then(()=>toast('Copiado!')).catch(()=>toast('Não consegui copiar.')); }
 function exportJson(){ const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='meu-album-copa-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
@@ -942,6 +1011,20 @@ function initCloud(){
       }
       cloud.user=user;
       if(user){
+        if(activeAlbumMode === 'family' && familyAlbumId){
+          try{
+            const famSnap = await familyCloudDoc(familyAlbumId).get();
+            familyAlbumMeta = famSnap.exists ? famSnap.data() : null;
+            if(!famSnap.exists || !familyAlbumMeta?.members?.[user.uid]){
+              setActiveAlbumMode('personal');
+              familyAlbumMeta = null;
+            }
+          }catch(e){
+            console.warn('family album unavailable', e);
+            setActiveAlbumMode('personal');
+            familyAlbumMeta = null;
+          }
+        }
         await loadCloud(true);
         startRealtimeSync();
       }
@@ -971,6 +1054,149 @@ function stateSignature(value){
     return '';
   }
 }
+
+function generateFamilyCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = 'FAM-';
+  for(let i=0;i<5;i++) out += chars[Math.floor(Math.random()*chars.length)];
+  return out;
+}
+function memberInfo(){
+  return {
+    uid: cloud.user?.uid || '',
+    name: cloud.user?.displayName || cloud.user?.email || 'Colecionador',
+    email: cloud.user?.email || '',
+    photoURL: cloud.user?.photoURL || '',
+    role: 'editor',
+    joinedAt: new Date().toISOString()
+  };
+}
+function familyInviteText(){
+  const code = familyAlbumMeta?.inviteCode || familyAlbumId || '';
+  return `Entre no meu Álbum Familiar da Copa 2026 usando o código: ${code}`;
+}
+async function createFamilyAlbum(){
+  if(!cloud.user) return toast('Entre com Google antes de criar um álbum familiar.');
+  const code = generateFamilyCode();
+  const doc = familyCloudDoc(code);
+  const payload = {
+    inviteCode: code,
+    ownerUid: cloud.user.uid,
+    ownerEmail: cloud.user.email || '',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    version: VERSION,
+    members: {[cloud.user.uid]: memberInfo()},
+    state: normalizeState(state)
+  };
+  await doc.set(payload);
+  familyAlbumMeta = {inviteCode: code, ownerUid: cloud.user.uid, members: {[cloud.user.uid]: memberInfo()}};
+  setActiveAlbumMode('family', code);
+  await loadCloud(true);
+  startRealtimeSync();
+  render();
+  toast(`Álbum familiar criado: ${code}`);
+}
+async function joinFamilyAlbum(code){
+  if(!cloud.user) return toast('Entre com Google antes de entrar em um álbum familiar.');
+  const cleaned = String(code || '').trim().toUpperCase();
+  if(!cleaned) return toast('Digite o código do álbum familiar.');
+  const doc = familyCloudDoc(cleaned);
+  const snap = await doc.get();
+  if(!snap.exists) return toast('Código não encontrado.');
+  await doc.set({
+    members: {[cloud.user.uid]: memberInfo()},
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, {merge:true});
+  familyAlbumMeta = snap.data();
+  setActiveAlbumMode('family', cleaned);
+  await loadCloud(true);
+  startRealtimeSync();
+  render();
+  toast('Você entrou no álbum familiar.');
+}
+async function switchToPersonalAlbum(){
+  if(!cloud.user) return;
+  setActiveAlbumMode('personal');
+  familyAlbumMeta = null;
+  await loadCloud(true);
+  startRealtimeSync();
+  render();
+  toast('Álbum pessoal ativado.');
+}
+async function switchToFamilyAlbum(){
+  if(!cloud.user || !familyAlbumId) return toast('Você ainda não entrou em um álbum familiar.');
+  setActiveAlbumMode('family', familyAlbumId);
+  await loadCloud(true);
+  startRealtimeSync();
+  render();
+  toast('Álbum familiar ativado.');
+}
+async function shareFamilyInvite(){
+  const text = familyInviteText();
+  try{
+    if(navigator.share){
+      await navigator.share({title:'Álbum Familiar da Copa', text});
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    toast('Convite copiado!');
+  }catch(e){
+    try{ await navigator.clipboard.writeText(text); }catch(err){}
+    toast('Convite copiado!');
+  }
+}
+async function leaveFamilyAlbum(){
+  if(!cloud.user || !familyAlbumId) return;
+  if(!confirm('Sair do álbum familiar neste aparelho? Seu álbum pessoal continuará salvo.')) return;
+  const id = familyAlbumId;
+  try{
+    await familyCloudDoc(id).set({
+      members: {[cloud.user.uid]: firebase.firestore.FieldValue.delete()},
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true});
+  }catch(e){}
+  familyAlbumMeta = null;
+  setActiveAlbumMode('personal');
+  await loadCloud(true);
+  startRealtimeSync();
+  render();
+  toast('Você saiu do álbum familiar.');
+}
+function renderFamilyCard(){
+  const members = familyAlbumMeta?.members || {};
+  const memberList = Object.values(members).filter(Boolean);
+  const code = familyAlbumMeta?.inviteCode || familyAlbumId || '';
+  const isFamily = activeAlbumMode === 'family' && familyAlbumId;
+  return `<section class="card family-card">
+    <span class="label">Álbum familiar</span>
+    <h3>${isFamily ? 'Família conectada' : 'Compartilhe com a família'}</h3>
+    <p class="muted">${isFamily ? 'Todos os membros editam o mesmo álbum em tempo real.' : 'Crie ou entre em um álbum familiar para duas ou mais contas Google marcarem juntas.'}</p>
+    ${isFamily ? `<div class="family-code"><span>Código</span><strong>${escapeHtml(code)}</strong></div>` : ''}
+    ${isFamily ? `<div class="family-members">${memberList.map(m=>`<span>${escapeHtml((m.name || m.email || 'Membro').split(' ')[0])}</span>`).join('') || '<span>Você</span>'}</div>` : ''}
+    <div class="button-row">
+      <button class="btn ${isFamily ? '' : 'primary'}" id="createFamilyAlbum">${isFamily ? 'Novo familiar' : 'Criar álbum familiar'}</button>
+      <button class="btn" id="joinFamilyAlbum">Entrar com código</button>
+      ${isFamily ? '<button class="btn primary" id="shareFamilyInvite">Compartilhar convite</button>' : ''}
+      ${familyAlbumId ? `<button class="btn" id="switchPersonal">${isFamily ? 'Usar pessoal' : 'Usar familiar'}</button>` : ''}
+      ${isFamily ? '<button class="btn danger" id="leaveFamilyAlbum">Sair do familiar</button>' : ''}
+    </div>
+  </section>`;
+}
+function bindFamilyCard(){
+  $('#createFamilyAlbum')?.addEventListener('click', createFamilyAlbum);
+  $('#joinFamilyAlbum')?.addEventListener('click', async () => {
+    const code = prompt('Digite o código do álbum familiar. Ex.: FAM-8K2P');
+    if(code) await joinFamilyAlbum(code);
+  });
+  $('#shareFamilyInvite')?.addEventListener('click', shareFamilyInvite);
+  $('#switchPersonal')?.addEventListener('click', () => {
+    if(activeAlbumMode === 'family') switchToPersonalAlbum();
+    else switchToFamilyAlbum();
+  });
+  $('#leaveFamilyAlbum')?.addEventListener('click', leaveFamilyAlbum);
+}
+
 function startRealtimeSync(){
   if(!cloud.ready || !cloud.user || !cloud.db) return;
   if(cloudUnsubscribe) cloudUnsubscribe();
@@ -980,6 +1206,7 @@ function startRealtimeSync(){
     if(snap.metadata?.hasPendingWrites) return;
 
     const data = snap.data();
+    if(activeAlbumMode === 'family') familyAlbumMeta = data;
     const remoteServerMs = cloudServerTimeMs(data);
     const remote = normalizeState(data.state);
 
@@ -1001,7 +1228,23 @@ function startRealtimeSync(){
     console.warn('realtime sync failed', err);
   });
 }
-function cloudDoc(){ return cloud.db.collection(CLOUD_COLLECTION).doc(cloud.user.uid); }
+function personalCloudDoc(){ return cloud.db.collection(CLOUD_COLLECTION).doc(cloud.user.uid); }
+function familyCloudDoc(id=familyAlbumId){ return cloud.db.collection(FAMILY_COLLECTION).doc(id); }
+function activeCloudDoc(){
+  if(activeAlbumMode === 'family' && familyAlbumId) return familyCloudDoc(familyAlbumId);
+  return personalCloudDoc();
+}
+function cloudDoc(){ return activeCloudDoc(); }
+function activeAlbumLabel(){
+  return activeAlbumMode === 'family' && familyAlbumId ? 'Álbum familiar' : 'Álbum pessoal';
+}
+function setActiveAlbumMode(mode, id=''){
+  activeAlbumMode = mode === 'family' && id ? 'family' : 'personal';
+  familyAlbumId = activeAlbumMode === 'family' ? id : '';
+  localStorage.setItem('meu-album-copa-active-mode', activeAlbumMode);
+  if(familyAlbumId) localStorage.setItem('meu-album-copa-family-id', familyAlbumId);
+  else localStorage.removeItem('meu-album-copa-family-id');
+}
 async function signInCloud(){ if(!cloud.ready) return toast('Firebase não configurado.'); try{ await cloud.auth.signInWithPopup(cloud.provider); }catch(e){ toast('Não consegui entrar com Google.'); } }
 async function signOutCloud(){
   if(cloudUnsubscribe){
@@ -1014,7 +1257,18 @@ async function signOutCloud(){
   render();
 }
 function queueCloudSave(){ if(!cloud.ready || !cloud.user) return; clearTimeout(syncTimer); syncTimer=setTimeout(()=>saveCloud(),700); }
-async function saveCloud(){ if(!cloud.ready || !cloud.user) return; try{ await cloudDoc().set({state, updatedAt:firebase.firestore.FieldValue.serverTimestamp(), version:VERSION},{merge:true}); }catch(e){ console.warn('save cloud failed', e); } }
+async function saveCloud(){
+  if(!cloud.ready || !cloud.user) return;
+  try{
+    const payload = {state, updatedAt:firebase.firestore.FieldValue.serverTimestamp(), version:VERSION};
+    if(activeAlbumMode === 'family'){
+      payload.members = {[cloud.user.uid]: memberInfo()};
+    }
+    await activeCloudDoc().set(payload,{merge:true});
+  }catch(e){
+    console.warn('save cloud failed', e);
+  }
+}
 async function loadCloud(silent=false){
   if(!cloud.ready || !cloud.user) return;
   try{

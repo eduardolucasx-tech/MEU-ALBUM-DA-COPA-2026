@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-1-5-saudacoes';
+const CACHE='meu-album-copa-v1-2-0-album-familiar';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',
