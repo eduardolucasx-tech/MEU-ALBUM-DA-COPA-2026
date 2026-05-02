@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.3.0-trocas-compactas';
-const VERSION_LABEL = 'v1.3.0';
-const VERSION_CHANGE = 'Trocas redesenhadas para uso real: resumo por status, filtros, lista compacta e edição por gaveta. Mantidas todas as melhorias anteriores de layout, perfil e visual rápido.';
+const VERSION = '1.3.1-long-press-mobile';
+const VERSION_LABEL = 'v1.3.1';
+const VERSION_CHANGE = 'Gestos ajustados para celular real: toque simples continua adicionando, toque longo agora zera no Álbum e no Visual rápido, com bloqueio reforçado de seleção de texto no modo rápido.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -265,27 +265,89 @@ function flashGesture(el, className){
   setTimeout(() => el?.classList.remove(className), 180);
 }
 function bindStickerGesture(el, id, onSingle, onClear){
-  const DOUBLE_TAP_MS = 330;
+  const LONG_PRESS_MS = 420;
+  const MOVE_TOLERANCE = 12;
+  let pressTimer = null;
+  let longTriggered = false;
+  let pointerActive = false;
+  let startX = 0;
+  let startY = 0;
+  let activePointerId = null;
 
-  el.addEventListener('pointerup', ev => {
-    ev.preventDefault();
-    ev.stopPropagation();
+  const targetEl = () => el.closest('.sticker') || el.closest('.quick-sticker') || el;
 
-    const now = Date.now();
-    const last = gestureLastTapById.get(id) || 0;
+  const clearPressTimer = () => {
+    if(pressTimer){
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  };
 
-    if(now - last < DOUBLE_TAP_MS){
-      gestureLastTapById.set(id, 0);
-      onClear(id);
-      flashGesture(el.closest('.sticker') || el, 'double-tap');
+  const resetPressState = () => {
+    clearPressTimer();
+    pointerActive = false;
+    activePointerId = null;
+    el.classList.remove('pressing');
+  };
+
+  const triggerLongPress = () => {
+    longTriggered = true;
+    clearPressTimer();
+    onClear(id);
+    flashGesture(targetEl(), 'long-press');
+    try{
+      if(typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(18);
+    }catch(e){}
+  };
+
+  el.addEventListener('pointerdown', ev => {
+    if(ev.button !== undefined && ev.button !== 0) return;
+    pointerActive = true;
+    longTriggered = false;
+    activePointerId = ev.pointerId;
+    startX = ev.clientX || 0;
+    startY = ev.clientY || 0;
+    el.classList.add('pressing');
+    clearPressTimer();
+    pressTimer = setTimeout(triggerLongPress, LONG_PRESS_MS);
+  }, {passive:true});
+
+  el.addEventListener('pointermove', ev => {
+    if(!pointerActive || activePointerId !== ev.pointerId) return;
+    const dx = Math.abs((ev.clientX || 0) - startX);
+    const dy = Math.abs((ev.clientY || 0) - startY);
+    if(dx > MOVE_TOLERANCE || dy > MOVE_TOLERANCE){
+      clearPressTimer();
+      el.classList.remove('pressing');
+    }
+  }, {passive:true});
+
+  const finishPress = (ev, shouldFireSingle = true) => {
+    if(activePointerId !== null && ev.pointerId !== undefined && activePointerId !== ev.pointerId) return;
+    const wasLong = longTriggered;
+    resetPressState();
+    if(wasLong){
+      ev.preventDefault();
+      ev.stopPropagation();
       return;
     }
+    if(shouldFireSingle){
+      ev.preventDefault();
+      ev.stopPropagation();
+      onSingle(id);
+      flashGesture(targetEl(), 'tap-feedback');
+    }
+  };
 
-    gestureLastTapById.set(id, now);
-    onSingle(id);
-    flashGesture(el.closest('.sticker') || el, 'tap-feedback');
-  }, {passive:false});
+  el.addEventListener('pointerup', ev => finishPress(ev, true), {passive:false});
+  el.addEventListener('pointercancel', ev => finishPress(ev, false), {passive:false});
+  el.addEventListener('pointerleave', ev => {
+    if(!pointerActive) return;
+    clearPressTimer();
+    el.classList.remove('pressing');
+  }, {passive:true});
 
+  el.addEventListener('dragstart', ev => ev.preventDefault());
   el.addEventListener('contextmenu', ev => ev.preventDefault());
 }
 
