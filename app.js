@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.2.0-album-familiar';
-const VERSION_LABEL = 'v1.2.0';
-const VERSION_CHANGE = 'Álbum Familiar implementado: crie um álbum compartilhado, entre com código de convite, alterne entre álbum pessoal e familiar, compartilhe o convite e sincronize em tempo real entre contas Google diferentes.';
+const VERSION = '1.2.2-infra-publica-ads-ready';
+const VERSION_LABEL = 'v1.2.2';
+const VERSION_CHANGE = 'Infraestrutura pública adicionada: Configurações no Perfil, cards de Dicas, Aviso Legal, Política de Privacidade, Termos de Uso, Avaliar/Feedback, painel de estimativa de pacotinhos e espaços de anúncio placeholder. Início reforçado para abrir com seleções fechadas.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -358,6 +358,14 @@ function updateKpiActions(){
   });
 }
 
+
+function closeAllSectionsOnFirstHome(){
+  if(firstHomeRenderDone) return;
+  openSections.clear();
+  saveOpenSections();
+  firstHomeRenderDone = true;
+}
+
 function renderHome(){
   const s = stats();
   const level = collectorLevel(s.progress);
@@ -386,6 +394,8 @@ function renderHome(){
     </section>
 
     ${googleReminderCard()}
+
+    ${renderAdsPlaceholder('home')}
 
     <section class="grid kpis home-kpis">
       ${kpiAction('Tenho', s.owned, 'owned')}
@@ -462,7 +472,8 @@ function renderHome(){
     const target = btn.dataset.kpiFilter === 'all' ? '' : btn.dataset.kpiFilter;
     $('#statusFilter').value = target;
     updateKpiActions();
-    renderTeamList();
+    closeAllSectionsOnFirstHome();
+  renderTeamList();
     $('#teamList')?.scrollIntoView({behavior:'smooth', block:'start'});
   }));
   $('#homeGoogleLogin')?.addEventListener('click', signInCloud);
@@ -485,6 +496,7 @@ function renderHome(){
   });
   updateSortButton();
   updateKpiActions();
+  if(!firstHomeRenderDone){ openSections.clear(); saveOpenSections(); firstHomeRenderDone = true; }
   renderTeamList();
 }
 
@@ -958,7 +970,139 @@ function renderShareCard(){
   </section>`;
 }
 
-function renderProfile(){ const s=stats(); const level=collectorLevel(s.progress); const email=cloud.user?.email || ''; $('#view-profile').innerHTML = `<section class="card hero" style="--p:${Math.round(s.progress*100)}%"><div><span class="label">Colecionador</span><h2>${escapeHtml(level.name)}</h2><p>${escapeHtml(level.desc)}</p><p class="muted">${s.owned} figurinhas coladas · ${s.duplicates} repetidas · ${s.completeTeams} seleções completas.</p></div><div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div></section>${profileStatsCards()}${renderFamilyCard()}<section class="profile-grid"><div class="card"><span class="label">Sincronização</span><h3>${cloud.user?'Google conectado':'Modo local'}</h3><p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p><div class="button-row"><button class="btn primary" id="loginBtn">${cloud.user?'Trocar conta':'Entrar com Google'}</button><button class="btn" id="logoutBtn">Sair</button><button class="btn" id="syncNow">Sincronizar</button></div></div><div class="card"><span class="label">Backup</span><div class="button-row"><button class="btn" id="exportJson">Exportar JSON</button><label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label><button class="btn danger" id="resetAll">Zerar tudo</button></div></div>${renderShareCard()}<div class="card about-card"><span class="label">Sobre</span><h3>Meu Álbum da Copa 2026</h3><div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div><p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p><p class="muted">Base preservada com ${albumItems.length} figurinhas.</p></div></section>`; bindFamilyCard(); $('#loginBtn').addEventListener('click',signInCloud); $('#logoutBtn').addEventListener('click',signOutCloud); $('#syncNow').addEventListener('click',syncNow); $('#shareAppBtn')?.addEventListener('click', shareApp); $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('change',importJson); $('#resetAll').addEventListener('click',()=>{ if(confirm('Zerar toda a coleção?')){ state=emptyState(); saveState('Coleção zerada'); render(); }}); }
+
+function albumEconomyStats(){
+  const s = stats();
+  const packSize = Number(localStorage.getItem('meu-album-copa-pack-size') || 7);
+  const packPrice = Number(localStorage.getItem('meu-album-copa-pack-price') || 5);
+  const packsBought = packSize ? Math.ceil(s.physical / packSize) : 0;
+  const packsToComplete = packSize ? Math.ceil(s.missing / packSize) : 0;
+  const invested = packsBought * packPrice;
+  const repeatedValue = Math.ceil(s.duplicates / Math.max(1, packSize)) * packPrice;
+  const toCompleteValue = packsToComplete * packPrice;
+  return {packSize, packPrice, packsBought, packsToComplete, invested, repeatedValue, toCompleteValue};
+}
+function brl(value){
+  return Number(value || 0).toLocaleString('pt-BR',{style:'currency', currency:'BRL'});
+}
+function renderEstimatePanel(){
+  const e = albumEconomyStats();
+  const s = stats();
+  return `<section class="card estimate-card">
+    <span class="label">Painel de estimativa</span>
+    <h3>Quanto falta pra fechar?</h3>
+    <div class="estimate-grid">
+      <div><strong>${e.packsBought}</strong><span>pacotes estimados comprados</span></div>
+      <div><strong>${e.packsToComplete}</strong><span>pacotes estimados para completar</span></div>
+      <div><strong>${brl(e.invested)}</strong><span>investido estimado</span></div>
+      <div><strong>${brl(e.toCompleteValue)}</strong><span>para completar aprox.</span></div>
+    </div>
+    <p class="muted">Base: ${e.packSize} figurinhas por pacote e ${brl(e.packPrice)} por pacote. Faltam ${s.missing} figurinhas únicas.</p>
+    <div class="mini-settings">
+      <label>Figurinhas por pacote<input id="packSizeInput" type="number" min="1" value="${e.packSize}"></label>
+      <label>Preço do pacote<input id="packPriceInput" type="number" min="0" step="0.01" value="${e.packPrice}"></label>
+    </div>
+  </section>`;
+}
+function bindEstimatePanel(){
+  $('#packSizeInput')?.addEventListener('change', e => {
+    localStorage.setItem('meu-album-copa-pack-size', Math.max(1, Number(e.target.value)||7));
+    render();
+  });
+  $('#packPriceInput')?.addEventListener('change', e => {
+    localStorage.setItem('meu-album-copa-pack-price', Math.max(0, Number(e.target.value)||5));
+    render();
+  });
+}
+function renderTipsCards(){
+  const tips = [
+    ['⚡','Marcação rápida','Toque uma vez na figurinha para adicionar +1. Dois toques rápidos zeram a figurinha.'],
+    ['📦','Modo pacotinho','Use a aba Adicionar para lançar uma lista inteira de códigos de uma vez.'],
+    ['☁️','Backup na nuvem','Entre com Google antes de marcar muita coisa. Assim o álbum fica protegido.'],
+    ['🔁','Trocas','Use a aba Trocas para copiar listas de repetidas e faltantes em formato de WhatsApp.'],
+    ['👨‍👩‍👧‍👦','Álbum familiar','Crie um álbum familiar no Perfil e compartilhe o código com outra conta Google.'],
+    ['📊','Painel','Configure preço do pacote e veja estimativas de gasto e pacotes para completar.']
+  ];
+  return `<section class="card tips-card">
+    <span class="label">Dicas</span>
+    <h3>Como tirar mais do app</h3>
+    <div class="tips-grid">${tips.map(t=>`<article><b>${t[0]}</b><strong>${t[1]}</strong><span>${t[2]}</span></article>`).join('')}</div>
+  </section>`;
+}
+function renderAdsPlaceholder(slot='perfil'){
+  return `<section class="ad-placeholder" aria-label="Espaço reservado para anúncio">
+    <span>Publicidade</span>
+    <strong>Espaço reservado para anúncio</strong>
+    <small>${slot === 'home' ? 'Área discreta da Home' : 'Área discreta do Perfil'}</small>
+  </section>`;
+}
+function openInfoModal(title, body){
+  const existing = $('#infoModal');
+  if(existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'infoModal';
+  modal.className = 'info-modal';
+  modal.innerHTML = `<div class="info-modal-card">
+    <button class="modal-close" type="button" aria-label="Fechar">×</button>
+    <h2>${escapeHtml(title)}</h2>
+    <div class="info-body">${body}</div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.querySelector('.modal-close').addEventListener('click',()=>modal.remove());
+  modal.addEventListener('click', e => { if(e.target === modal) modal.remove(); });
+}
+function legalText(){
+  return `<p>Este aplicativo é uma criação independente de fãs e não é afiliado, endossado ou conectado à FIFA, Panini, organizações oficiais de futebol, fabricantes oficiais de figurinhas ou parceiros oficiais do torneio.</p>
+  <p>Todas as marcas registradas, nomes, escudos, seleções, competições e referências pertencem aos seus respectivos donos.</p>
+  <p>O objetivo do app é apenas ajudar colecionadores a controlar figurinhas, repetidas, faltantes e trocas.</p>`;
+}
+function privacyText(){
+  return `<p>O app salva os dados do álbum no próprio navegador e, quando o usuário entra com Google, também pode sincronizar com Firebase/Firestore.</p>
+  <p>Os dados usados são: e-mail/nome da conta Google para login, lista de figurinhas marcadas, repetidas, informações de trocas e dados do álbum familiar quando ativado.</p>
+  <p>Não vendemos dados pessoais. Anúncios, quando ativados no futuro, poderão usar tecnologias de terceiros conforme as políticas dessas plataformas.</p>`;
+}
+function termsText(){
+  return `<p>Ao usar o app, você concorda em utilizar a ferramenta apenas para controle pessoal, familiar ou de trocas entre colecionadores.</p>
+  <p>O app pode receber atualizações, mudanças visuais e ajustes de funcionamento. Faça backup/exportação sempre que necessário.</p>
+  <p>O recurso de álbum familiar permite que membros editem o mesmo álbum. Compartilhe o código apenas com pessoas de confiança.</p>`;
+}
+function aboutAppText(){
+  return `<p><strong>Meu Álbum da Copa 2026</strong> é um app/PWA para controlar figurinhas, repetidas, faltantes, trocas, progresso e álbum familiar.</p>
+  <p>Versão atual: <strong>${VERSION_LABEL}</strong> · ${escapeHtml(VERSION)}</p>
+  <p>“Não sei nem como fiz, só sei que fiz!” VIVEIROS, Lucas.</p>`;
+}
+function sendFeedback(){
+  const subject = encodeURIComponent('Feedback - Meu Álbum da Copa 2026');
+  const body = encodeURIComponent(`Oi! Tenho um feedback sobre o Meu Álbum da Copa 2026:\n\n`);
+  location.href = `mailto:?subject=${subject}&body=${body}`;
+}
+function renderSettingsHub(){
+  return `<section class="card settings-hub">
+    <span class="label">Configurações</span>
+    <h3>App, suporte e documentos</h3>
+    <div class="settings-list">
+      <button data-info="tips"><span>💡</span><b>Dicas de uso</b><small>Aprenda os atalhos principais</small></button>
+      <button data-info="feedback"><span>⭐</span><b>Avaliar / Feedback</b><small>Enviar sugestão ou problema</small></button>
+      <button data-info="about"><span>ℹ️</span><b>Sobre o app</b><small>Versão, autoria e detalhes</small></button>
+      <button data-info="privacy"><span>🛡️</span><b>Política de Privacidade</b><small>Dados locais, Google e Firebase</small></button>
+      <button data-info="terms"><span>📄</span><b>Termos de Uso</b><small>Uso, família e responsabilidade</small></button>
+      <button data-info="legal"><span>⚖️</span><b>Aviso Legal</b><small>App independente de fãs</small></button>
+    </div>
+  </section>`;
+}
+function bindSettingsHub(){
+  $$('[data-info]').forEach(btn => btn.addEventListener('click', () => {
+    const type = btn.dataset.info;
+    if(type === 'feedback') return sendFeedback();
+    if(type === 'tips') return openInfoModal('Dicas de uso', renderTipsCards());
+    if(type === 'about') return openInfoModal('Sobre o app', aboutAppText());
+    if(type === 'privacy') return openInfoModal('Política de Privacidade', privacyText());
+    if(type === 'terms') return openInfoModal('Termos de Uso', termsText());
+    if(type === 'legal') return openInfoModal('Aviso Legal', legalText());
+  }));
+}
+
+function renderProfile(){ const s=stats(); const level=collectorLevel(s.progress); const email=cloud.user?.email || ''; $('#view-profile').innerHTML = `<section class="card hero" style="--p:${Math.round(s.progress*100)}%"><div><span class="label">Colecionador</span><h2>${escapeHtml(level.name)}</h2><p>${escapeHtml(level.desc)}</p><p class="muted">${s.owned} figurinhas coladas · ${s.duplicates} repetidas · ${s.completeTeams} seleções completas.</p></div><div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div></section>${profileStatsCards()}${renderEstimatePanel()}${renderFamilyCard()}${renderTipsCards()}${renderSettingsHub()}${renderAdsPlaceholder('perfil')}<section class="profile-grid"><div class="card"><span class="label">Sincronização</span><h3>${cloud.user?'Google conectado':'Modo local'}</h3><p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p><div class="button-row"><button class="btn primary" id="loginBtn">${cloud.user?'Trocar conta':'Entrar com Google'}</button><button class="btn" id="logoutBtn">Sair</button><button class="btn" id="syncNow">Sincronizar</button></div></div><div class="card"><span class="label">Backup</span><div class="button-row"><button class="btn" id="exportJson">Exportar JSON</button><label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label><button class="btn danger" id="resetAll">Zerar tudo</button></div></div>${renderShareCard()}<div class="card about-card"><span class="label">Sobre</span><h3>Meu Álbum da Copa 2026</h3><div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div><p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p><p class="muted">“Não sei nem como fiz, só sei que fiz!” VIVEIROS, Lucas.</p></div></section>`; bindEstimatePanel(); bindSettingsHub(); bindFamilyCard(); $('#loginBtn').addEventListener('click',signInCloud); $('#logoutBtn').addEventListener('click',signOutCloud); $('#syncNow').addEventListener('click',syncNow); $('#shareAppBtn')?.addEventListener('click', shareApp); $('#exportJson').addEventListener('click',exportJson); $('#importJson').addEventListener('change',importJson); $('#resetAll').addEventListener('click',()=>{ if(confirm('Zerar toda a coleção?')){ state=emptyState(); saveState('Coleção zerada'); render(); }}); }
 
 function copyText(text){ navigator.clipboard?.writeText(text).then(()=>toast('Copiado!')).catch(()=>toast('Não consegui copiar.')); }
 function exportJson(){ const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='meu-album-copa-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
