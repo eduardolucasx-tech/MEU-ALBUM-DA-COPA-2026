@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.2.5-switch-ordem-dupla';
-const VERSION_LABEL = 'v1.2.5';
-const VERSION_CHANGE = 'Chave de ordenação redesenhada: agora mostra Ordem do álbum de um lado e Ordem alfabética do outro, tanto no Início/Álbum quanto no Modo rápido.';
+const VERSION = '1.2.7-sem-toque-longo';
+const VERSION_LABEL = 'v1.2.7';
+const VERSION_CHANGE = 'Toque longo removido para evitar conflito com seleção/menu do celular. Agora, no Álbum e no Modo rápido, um toque adiciona +1 e toque duplo rápido zera a figurinha.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -147,6 +147,7 @@ let applyingRemoteState = false;
 let lastCloudServerMs = 0;
 let packSession = [];
 let lastUndo = null;
+const gestureLastTapById = new Map();
 let albumSortMode = localStorage.getItem('meu-album-copa-sort-mode') || 'album';
 const openSections = new Set(loadOpenSections());
 let firstHomeRenderDone = false;
@@ -257,6 +258,36 @@ function setQty(id, value, label, options={}){
 }
 function addQty(id, delta){ const item = itemById(id); if(item) setQty(id, qty(id)+delta, `${item.ref} ${delta>0?'adicionada':'removida'}`); }
 function quickToggle(id){ const item = itemById(id); if(item) setQty(id, qty(id)>0 ? 0 : 1, `${item.ref} ${qty(id)>0?'marcada como falta':'marcada como tenho'}`); }
+
+function flashGesture(el, className){
+  el?.classList.add(className);
+  setTimeout(() => el?.classList.remove(className), 180);
+}
+function bindStickerGesture(el, id, onSingle, onClear){
+  const DOUBLE_TAP_MS = 330;
+
+  el.addEventListener('pointerup', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+
+    const now = Date.now();
+    const last = gestureLastTapById.get(id) || 0;
+
+    if(now - last < DOUBLE_TAP_MS){
+      gestureLastTapById.set(id, 0);
+      onClear(id);
+      flashGesture(el.closest('.sticker') || el, 'double-tap');
+      return;
+    }
+
+    gestureLastTapById.set(id, now);
+    onSingle(id);
+    flashGesture(el.closest('.sticker') || el, 'tap-feedback');
+  }, {passive:false});
+
+  el.addEventListener('contextmenu', ev => ev.preventDefault());
+}
+
 function quickAddOne(id){
   const item = itemById(id);
   if(!item) return;
@@ -268,30 +299,13 @@ function quickClear(id){
   setQty(id, 0, `${item.ref} zerada no visual rápido`);
 }
 function bindQuickActions(scope=document){
-  const DOUBLE_TAP_MS = 280;
   $$('[data-quick-id]', scope).forEach(el => {
-    let lastTap = 0;
-
-    el.addEventListener('pointerup', ev => {
-      ev.preventDefault();
-      const now = Date.now();
-      const id = el.dataset.quickId;
-
-      if(now - lastTap < DOUBLE_TAP_MS){
-        lastTap = 0;
-        quickClear(id);
-        el.classList.add('double-tap');
-        setTimeout(() => el.classList.remove('double-tap'), 180);
-        return;
-      }
-
-      lastTap = now;
-      quickAddOne(id);
-      el.classList.add('tap-feedback');
-      setTimeout(() => el.classList.remove('tap-feedback'), 120);
-    });
-
-    el.addEventListener('contextmenu', ev => ev.preventDefault());
+    bindStickerGesture(
+      el,
+      el.dataset.quickId,
+      quickAddOne,
+      quickClear
+    );
   });
 }
 
@@ -622,38 +636,16 @@ function stickerCard(item){
   return `<div class="sticker ${s} ${special?'special':''} ${shield?'shield':''}"><button class="sticker-main" data-toggle="${item.id}" aria-label="${escapeAttr(item.ref)} ${escapeAttr(name)}"><span class="status ${s}">${s==='missing'?'FALTA':s==='owned'?'TENHO':`REP +${extras(item)}`}</span><span class="sticker-face"><span class="sticker-top"><span class="code">${escapeHtml(codeOf(item))}</span><span class="num">${escapeHtml(n)}</span></span><span class="art"><span class="emblem">${special?'★':badge}</span></span><span class="sticker-info"><strong class="sticker-name">${escapeHtml(name)}</strong><span class="sticker-meta">${escapeHtml(meta)}</span></span></span></button><div class="qty"><button class="qty-btn" data-dec="${item.id}">−</button><b>${q}</b><button class="qty-btn" data-inc="${item.id}">+</button></div></div>`;
 }
 function bindStickerActions(ctx=document){
-  const DOUBLE_TAP_MS = 280;
-
   $$('[data-toggle]',ctx).forEach(b=>{
-    let lastTap = 0;
-
-    b.addEventListener('pointerup',ev=>{
-      ev.preventDefault();
-      ev.stopPropagation();
-
-      const id = b.dataset.toggle;
-      const item = itemById(id);
-      if(!item) return;
-
-      const now = Date.now();
-
-      if(now - lastTap < DOUBLE_TAP_MS){
-        lastTap = 0;
-        setQty(id, 0, `${item.ref} zerada`);
-        const card = b.closest('.sticker');
-        card?.classList.add('double-tap');
-        setTimeout(()=>card?.classList.remove('double-tap'), 180);
-        return;
+    bindStickerGesture(
+      b,
+      b.dataset.toggle,
+      id => addQty(id, 1),
+      id => {
+        const item = itemById(id);
+        if(item) setQty(id, 0, `${item.ref} zerada`);
       }
-
-      lastTap = now;
-      addQty(id, 1);
-      const card = b.closest('.sticker');
-      card?.classList.add('tap-feedback');
-      setTimeout(()=>card?.classList.remove('tap-feedback'), 120);
-    });
-
-    b.addEventListener('contextmenu', ev => ev.preventDefault());
+    );
   });
 
   $$('[data-inc]',ctx).forEach(b=>b.addEventListener('pointerup',ev=>{
