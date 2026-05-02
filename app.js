@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.2.11-perfil-enxuto';
-const VERSION_LABEL = 'v1.2.11';
-const VERSION_CHANGE = 'Perfil reorganizado: as estatísticas agora ficam dentro do Painel do Colecionador, com menos redundância e leitura mais limpa. A chave de ordenação da Home segue visível fora da busca.';
+const VERSION = '1.2.13-perfil-alinhado';
+const VERSION_LABEL = 'v1.2.13';
+const VERSION_CHANGE = 'Painel do colecionador refinado: anel de porcentagem alinhado ao topo, grade de estatísticas ocupando a parte inferior e remoção de redundâncias no resumo superior.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -686,17 +686,19 @@ function renderQuickView(){
           </div>
           <p class="muted">Nesta aba, cada quadrado mostra só o número da figurinha. Preto com número dourado = falta. Dourado com número preto = tenho. Dourado com ponto preto = tenho repetida.</p>
           <p class="muted">Toque uma vez para adicionar +1. Toque duplo rápido para zerar a figurinha.</p>
+
+          <div class="quick-inline-filters">
+            <span class="label">Filtros rápidos</span>
+            <div class="filters quick-filters quick-filters-inside">
+              <select id="quickGroupFilter"><option value="">Todos os grupos</option>${groups.map(g=>`<option value="${g}">Grupo ${g}</option>`).join('')}<option value="EXTRAS">Extras</option></select>
+              <select id="quickStatusFilter"><option value="">Todas</option><option value="missing">Só faltantes</option><option value="duplicate">Só repetidas</option><option value="owned">Só tenho</option></select>
+              <input id="quickSearch" class="search" type="search" placeholder="Buscar seleção ou sigla: BRA, Brasil...">
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="card">
-      <div class="filters quick-filters">
-        <select id="quickGroupFilter"><option value="">Todos os grupos</option>${groups.map(g=>`<option value="${g}">Grupo ${g}</option>`).join('')}<option value="EXTRAS">Extras</option></select>
-        <select id="quickStatusFilter"><option value="">Todas</option><option value="missing">Só faltantes</option><option value="duplicate">Só repetidas</option><option value="owned">Só tenho</option></select>
-        <input id="quickSearch" class="search" type="search" placeholder="Buscar seleção ou sigla: BRA, Brasil...">
-      </div>
-    </section>
     <section class="card sort-card">
       <div class="album-sort-row quick-sort-row">
         <span class="muted">Organizar seleções</span>
@@ -1101,8 +1103,8 @@ function sendFeedback(){
 }
 function renderSettingsHub(){
   return `<section class="card settings-hub">
-    <span class="label">Configurações</span>
-    <h3>App, suporte e documentos</h3>
+    <span class="label">Ajuda e informações</span>
+    <h3>Suporte, documentos e feedback</h3>
     <div class="settings-list">
       <button data-info="tips"><span>💡</span><b>Dicas de uso</b><small>Aprenda os atalhos principais</small></button>
       <button data-info="feedback"><span>⭐</span><b>Avaliar / Feedback</b><small>Enviar sugestão ou problema</small></button>
@@ -1136,40 +1138,40 @@ function renderProfile(){
 
   $('#view-profile').innerHTML = `
     <section class="card hero profile-collector-panel" style="--p:${Math.round(s.progress*100)}%">
-      <div>
-        <span class="label">Painel do colecionador</span>
-        <h2>${escapeHtml(level.name)}</h2>
-        <p class="muted">${escapeHtml(level.desc)}</p>
+      <div class="collector-top">
+        <div class="collector-head">
+          <span class="label">Painel do colecionador</span>
+          <h2>${escapeHtml(level.name)}</h2>
+          <p class="muted">${escapeHtml(level.desc)}</p>
 
-        <div class="collector-summary-row">
-          <span class="pill soft">${s.owned} coladas</span>
-          <span class="pill soft">${s.duplicates} repetidas</span>
-          <span class="pill soft">${s.completeTeams} seleções completas</span>
+          <div class="collector-summary-row">
+            <span class="pill soft">${s.owned} coladas</span>
+            <span class="pill soft">${s.duplicates} repetidas</span>
+          </div>
         </div>
 
-        <div class="stats-grid compact-stats">
-          <div class="stat-tile"><strong>${s.completeTeams}</strong><span>seleções completas</span></div>
-          <div class="stat-tile"><strong>${escapeHtml(mostComplete?.code || '-')}</strong><span>mais avançada</span></div>
-          <div class="stat-tile"><strong>${escapeHtml(leastComplete?.code || '-')}</strong><span>mais atrasada</span></div>
-          <div class="stat-tile"><strong>${topDup.length ? escapeHtml(topDup[0].ref) : '-'}</strong><span>top repetida</span></div>
-        </div>
-
-        <div class="mini-list compact-mini-list">
-          ${topDup.length ? topDup.map(i=>`<div class="row"><div><strong>${escapeHtml(i.ref)}</strong><small>${escapeHtml(stickerDisplayName(i))}</small></div><b>+${extras(i)}</b></div>`).join('') : '<div class="empty">Sem repetidas ainda.</div>'}
-        </div>
+        <div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div>
       </div>
-      <div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div>
+
+      <div class="stats-grid compact-stats">
+        <div class="stat-tile"><strong>${s.completeTeams}</strong><span>seleções completas</span></div>
+        <div class="stat-tile"><strong>${escapeHtml(mostComplete?.code || '-')}</strong><span>mais avançada</span></div>
+        <div class="stat-tile"><strong>${escapeHtml(leastComplete?.code || '-')}</strong><span>mais atrasada</span></div>
+        <div class="stat-tile"><strong>${topDup.length ? escapeHtml(topDup[0].ref) : '-'}</strong><span>top repetida</span></div>
+      </div>
+
+      <div class="mini-list compact-mini-list">
+        ${topDup.length ? topDup.map(i=>`<div class="row"><div><strong>${escapeHtml(i.ref)}</strong><small>${escapeHtml(stickerDisplayName(i))}</small></div><b>+${extras(i)}</b></div>`).join('') : '<div class="empty">Sem repetidas ainda.</div>'}
+      </div>
     </section>
 
     ${renderEstimatePanel()}
     ${renderFamilyCard()}
-    ${renderTipsCards()}
-    ${renderSettingsHub()}
     ${renderAdsPlaceholder('perfil')}
 
     <section class="profile-grid">
       <div class="card">
-        <span class="label">Sincronização</span>
+        <span class="label">Conta e sincronização</span>
         <h3>${cloud.user ? 'Google conectado' : 'Modo local'}</h3>
         <p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p>
         <div class="button-row">
@@ -1180,15 +1182,18 @@ function renderProfile(){
       </div>
 
       <div class="card">
-        <span class="label">Backup</span>
+        <span class="label">Ferramentas</span>
+        <h3>Dados e compartilhamento</h3>
+        <p class="muted">Leve seu álbum, faça backup e chame outras pessoas para usar o app.</p>
         <div class="button-row">
+          <button class="btn primary" id="shareAppBtn" type="button">Compartilhar app</button>
           <button class="btn" id="exportJson">Exportar JSON</button>
           <label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label>
           <button class="btn danger" id="resetAll">Zerar tudo</button>
         </div>
       </div>
 
-      ${renderShareCard()}
+      ${renderSettingsHub()}
 
       <div class="card about-card">
         <span class="label">Sobre</span>

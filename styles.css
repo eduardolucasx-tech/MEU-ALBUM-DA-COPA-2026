@@ -1792,3 +1792,87 @@ textarea{
     align-items:start;
   }
 }
+
+
+/* v1.2.12 - polimento quick e perfil */
+.quick-help-card .drawer-inner{
+  display:grid;
+  gap:12px;
+}
+.quick-inline-filters{
+  margin-top:2px;
+  padding-top:10px;
+  border-top:1px solid var(--line);
+}
+.quick-filters-inside{
+  margin-top:8px;
+}
+.quick-filters-inside .search,
+.quick-filters-inside select{
+  width:100%;
+}
+.settings-hub{
+  height:100%;
+}
+.settings-hub .settings-list{
+  margin-top:8px;
+}
+.profile-grid > .card{
+  height:100%;
+}
+.profile-grid .button-row{
+  align-items:stretch;
+}
+.profile-grid .btn,
+.profile-grid label.btn{
+  min-height:44px;
+}
+@media(min-width:760px){
+  .quick-filters-inside{
+    grid-template-columns:1fr 1fr 1.4fr;
+  }
+}
+
+
+/* v1.2.13 - alinhamento do painel do colecionador */
+.profile-collector-panel{
+  display:block;
+}
+.profile-collector-panel .collector-top{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:16px;
+  align-items:start;
+}
+.profile-collector-panel .collector-head{
+  min-width:0;
+}
+.profile-collector-panel .collector-summary-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:14px 0 0;
+}
+.profile-collector-panel .compact-stats{
+  margin-top:16px;
+}
+.profile-collector-panel .compact-mini-list{
+  margin-top:12px;
+}
+.profile-collector-panel .ring{
+  align-self:start;
+  margin-top:8px;
+}
+@media(max-width:374px){
+  .profile-collector-panel .collector-top{
+    grid-template-columns:1fr;
+  }
+  .profile-collector-panel .ring{
+    margin-top:0;
+  }
+}
+@media(min-width:760px){
+  .profile-collector-panel .collector-top{
+    grid-template-columns:minmax(0,1fr) auto;
+  }
+}
