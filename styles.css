@@ -2261,3 +2261,13 @@ textarea{
 .album-page:not(.open) .section-slide{
   max-height:0;
 }
+
+
+/* v1.4.5 - modal de cópia manual */
+.copy-modal textarea{
+  width:100%;
+  min-height:260px;
+  margin-top:12px;
+  white-space:pre-wrap;
+  font-size:.86rem;
+}

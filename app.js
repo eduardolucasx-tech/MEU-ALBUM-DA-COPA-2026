@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.4.4-fix-lazy-album-open';
-const VERSION_LABEL = 'v1.4.4';
-const VERSION_CHANGE = 'Correção do carregamento leve do Álbum: ao abrir uma seleção, as figurinhas carregam imediatamente com fallback compatível com Safari/iPhone.';
+const VERSION = '1.4.5-fix-copiar-trocas';
+const VERSION_LABEL = 'v1.4.5';
+const VERSION_CHANGE = 'Correção da cópia de listas na aba Trocas: função de copiar restaurada com fallback compatível com Safari/iPhone e PWA.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -137,6 +137,81 @@ const HOME_GREETINGS_EXACT = new Set([
   'É Copa do Mundo, amigo!',
   '{name}! Sentiu!'
 ]);
+
+async function copyText(text){
+  const value = String(text || '').trim();
+  if(!value){
+    safeToast('Nada para copiar.');
+    return;
+  }
+
+  try{
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(value);
+      safeToast('Copiado!');
+      return;
+    }
+  }catch(e){
+    console.warn('clipboard API failed, using fallback', e);
+  }
+
+  try{
+    const ta = document.createElement('textarea');
+    ta.value = value;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+
+    if(ok){
+      safeToast('Copiado!');
+      return;
+    }
+  }catch(e){
+    console.warn('execCommand copy failed', e);
+  }
+
+  openCopyModal(value);
+}
+
+function openCopyModal(text){
+  const existing = document.getElementById('copyModal');
+  if(existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'copyModal';
+  modal.className = 'info-modal copy-modal';
+  modal.innerHTML = `<div class="info-modal-card">
+    <button class="modal-close" type="button" aria-label="Fechar">×</button>
+    <h2>Copiar manualmente</h2>
+    <p class="muted">Seu navegador bloqueou a cópia automática. Selecione o texto abaixo e copie.</p>
+    <textarea id="manualCopyText" rows="12" readonly>${escapeHtml(text)}</textarea>
+  </div>`;
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  modal.querySelector('.modal-close')?.addEventListener('click', close);
+  modal.addEventListener('click', e => { if(e.target === modal) close(); });
+
+  setTimeout(() => {
+    const ta = document.getElementById('manualCopyText');
+    if(ta){
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+    }
+  }, 50);
+}
+
+
 function firstNameFromGoogle(){
   const raw = cloud.user?.displayName || '';
   const first = raw.trim().split(/\s+/)[0] || '';
@@ -1294,10 +1369,14 @@ function renderTrades(){
       <div id="tradeList" class="trade-list"></div>
     </section>`;
 
-  $('#copyDup').addEventListener('click',()=>copyText(`🔁 Repetidas:
-${formatList(i=>qty(i.id)>1,'dup')}`));
-  $('#copyMissing').addEventListener('click',()=>copyText(`📌 Faltantes:
-${formatList(i=>qty(i.id)===0)}`));
+  $('#copyDup').addEventListener('click', async (ev)=>{
+    ev.preventDefault();
+    await copyText(`🔁 Repetidas:\n${formatList(i=>qty(i.id)>1,'dup')}`);
+  });
+  $('#copyMissing').addEventListener('click', async (ev)=>{
+    ev.preventDefault();
+    await copyText(`📌 Faltantes:\n${formatList(i=>qty(i.id)===0)}`);
+  });
   bindCompareTool();
 
   const searchEl = $('#tradeSearch');
