@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.4.2-proposta-sem-pontos';
-const VERSION_LABEL = 'v1.4.2';
-const VERSION_CHANGE = 'Proposta de troca ajustada: figurinhas especiais continuam destacadas, mas sem pontuação/valor automático. A decisão de equivalência fica totalmente manual para o usuário.';
+const VERSION = '1.4.3-lazy-album-mobile';
+const VERSION_LABEL = 'v1.4.3';
+const VERSION_CHANGE = 'O Álbum agora usa carregamento leve no mobile: seleções fechadas não montam todas as figurinhas de uma vez, reduzindo travamentos ao voltar para o Início no Safari/iPhone.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -669,6 +669,7 @@ function renderTeamList(){
     const groupLabel = sec.group === 'EXTRAS' ? 'Extras' : `Grupo ${sec.group}`;
     const isOpen = openSections.has(key);
 
+    const stickerHtml = isOpen ? items.map(stickerCard).join('') : '';
     cards.push(`<article class="team-card album-page ${st.progress===1?'complete':''} ${isOpen?'open':''}" data-section="${escapeAttr(key)}">
       <button class="team-head team-toggle" type="button" data-section-toggle="${escapeAttr(key)}" aria-expanded="${isOpen ? 'true':'false'}">
         <div class="team-badge">${flagMark(sec.code, sec.name) || escapeHtml(codeOf(sec)).slice(0,2)}</div>
@@ -685,7 +686,7 @@ function renderTeamList(){
       <div class="section-slide">
         <div class="slide-inner">
           <div class="slide-surface"></div>
-          <div class="sticker-grid">${items.map(stickerCard).join('')}</div>
+          <div class="sticker-grid" data-grid-section="${escapeAttr(key)}">${stickerHtml}</div>
         </div>
       </div>
     </article>`);
@@ -728,9 +729,22 @@ function renderTeamList(){
     if(openSections.has(key)) openSections.delete(key);
     else openSections.add(key);
     saveOpenSections();
+
     const open = openSections.has(key);
     card?.classList.toggle('open', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+    if(open){
+      const grid = card?.querySelector(`[data-grid-section="${cssEscapeSafe(key)}"]`);
+      if(grid && !grid.dataset.loaded){
+        const sec = SECTION_LIST.find(s => (s.sectionKey || s.code) === key);
+        if(sec){
+          grid.innerHTML = sectionItems(sec).map(stickerCard).join('');
+          grid.dataset.loaded = '1';
+          bindStickerActions(grid);
+        }
+      }
+    }
   }));
 
   bindStickerActions(container);

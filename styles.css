@@ -2250,3 +2250,14 @@ textarea{
 .proposal-summary #specialCount{
   color:var(--gold);
 }
+
+
+/* v1.4.3 - álbum leve no mobile */
+.sticker-grid:empty::after{
+  content:'';
+  display:block;
+  min-height:1px;
+}
+.album-page:not(.open) .section-slide{
+  max-height:0;
+}

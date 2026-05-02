@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-4-2-proposta-sem-pontos';
+const CACHE='meu-album-copa-v1-4-3-lazy-album-mobile';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',
