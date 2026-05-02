@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.2.2-infra-publica-ads-ready';
-const VERSION_LABEL = 'v1.2.2';
-const VERSION_CHANGE = 'Infraestrutura pública adicionada: Configurações no Perfil, cards de Dicas, Aviso Legal, Política de Privacidade, Termos de Uso, Avaliar/Feedback, painel de estimativa de pacotinhos e espaços de anúncio placeholder. Início reforçado para abrir com seleções fechadas.';
+const VERSION = '1.2.4-estavel';
+const VERSION_LABEL = 'v1.2.4';
+const VERSION_CHANGE = 'Versão estável de consolidação: revisão final da Home/Álbum, Modo rápido, Álbum Familiar, infraestrutura pública, placeholders de anúncio, responsividade mobile e limpeza de ajustes redundantes.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -149,6 +149,7 @@ let packSession = [];
 let lastUndo = null;
 let albumSortMode = localStorage.getItem('meu-album-copa-sort-mode') || 'album';
 const openSections = new Set(loadOpenSections());
+let firstHomeRenderDone = false;
 
 function codeOf(obj){ return obj.displayCode || obj.code; }
 function refOf(obj, number){ return Number(number) === 0 ? '00' : `${codeOf(obj)} ${String(number).padStart(2,'0')}`; }
@@ -496,7 +497,7 @@ function renderHome(){
   });
   updateSortButton();
   updateKpiActions();
-  if(!firstHomeRenderDone){ openSections.clear(); saveOpenSections(); firstHomeRenderDone = true; }
+  closeAllSectionsOnFirstHome();
   renderTeamList();
 }
 

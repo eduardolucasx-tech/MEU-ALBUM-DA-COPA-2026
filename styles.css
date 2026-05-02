@@ -1517,3 +1517,92 @@ textarea{
     grid-template-columns:1fr;
   }
 }
+
+
+/* v1.2.3 - fixes home album + quick sort mobile */
+.quick-sort-row{
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:center;
+  gap:12px;
+}
+.quick-sort-row > .muted{
+  min-width:0;
+}
+.quick-sort-row .sort-switch{
+  width:auto;
+  max-width:min(100%, 210px);
+  flex:none;
+  justify-self:end;
+  justify-content:space-between;
+}
+.quick-sort-row .sort-switch b{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+@media (max-width: 520px){
+  .quick-sort-row{
+    grid-template-columns:1fr;
+    align-items:stretch;
+  }
+  .quick-sort-row .sort-switch{
+    width:auto;
+    max-width:200px;
+    justify-self:end;
+  }
+}
+
+
+/* v1.2.4 - estabilidade e acabamento mobile */
+#teamList{
+  min-height:120px;
+}
+.filter-drawer-card,
+.card,
+.album-page{
+  max-width:100%;
+}
+.quick-sort-row{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) auto !important;
+  align-items:center !important;
+  gap:10px !important;
+  overflow:hidden;
+}
+.quick-sort-row > .muted{
+  min-width:0 !important;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.quick-sort-row .sort-switch{
+  width:auto !important;
+  max-width:190px !important;
+  min-width:0 !important;
+  flex:none !important;
+  justify-self:end !important;
+  justify-content:space-between !important;
+  padding-right:9px !important;
+}
+.quick-sort-row .switch-track{
+  flex:0 0 46px;
+}
+.quick-sort-row .sort-switch b{
+  min-width:0 !important;
+  max-width:118px !important;
+  overflow:hidden !important;
+  text-overflow:ellipsis !important;
+  white-space:nowrap !important;
+}
+@media (max-width:520px){
+  .quick-sort-row{
+    grid-template-columns:1fr !important;
+  }
+  .quick-sort-row .sort-switch{
+    max-width:190px !important;
+    justify-self:end !important;
+  }
+  .album-sort-row .sort-switch{
+    max-width:100% !important;
+  }
+}
