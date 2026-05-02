@@ -1,7 +1,7 @@
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.3.1-long-press-mobile';
-const VERSION_LABEL = 'v1.3.1';
-const VERSION_CHANGE = 'Gestos ajustados para celular real: toque simples continua adicionando, toque longo agora zera no Álbum e no Visual rápido, com bloqueio reforçado de seleção de texto no modo rápido.';
+const VERSION = '1.3.2-fix-toast-firebase';
+const VERSION_LABEL = 'v1.3.2';
+const VERSION_CHANGE = 'Correção de estabilidade: chamadas de aviso/toast agora são seguras durante sincronização Firebase, evitando erro no console e travamento de atualizações em tempo real.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1711,7 +1711,7 @@ function startRealtimeSync(){
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         applyingRemoteState = false;
         render();
-        toast('Álbum atualizado pela nuvem.');
+        safeToast('Álbum atualizado pela nuvem.');
       }
     }
   }, err => {
@@ -1772,7 +1772,7 @@ async function loadCloud(silent=false){
       if(stateSignature(remote) !== stateSignature(state)){
         state = remote;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        if(!silent) toast('Nuvem carregada.');
+        if(!silent) safeToast('Nuvem carregada.');
         render();
       }
     } else {
@@ -1780,10 +1780,10 @@ async function loadCloud(silent=false){
     }
   }catch(e){
     console.warn('load cloud failed', e);
-    if(!silent) toast('Falha na sincronização.');
+    if(!silent) safeToast('Falha na sincronização.');
   }
 }
-async function syncNow(){ if(!cloud.user) return toast('Entre com Google no Perfil.'); await loadCloud(); await saveCloud(); toast('Sincronizado.'); }
+async function syncNow(){ if(!cloud.user) return safeToast('Entre com Google no Perfil.'); await loadCloud(); await saveCloud(); safeToast('Sincronizado.'); }
 
 $$('.nav-btn').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 const appEl = $('#app');
