@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.6-colinha-export-completo';
-const VERSION_LABEL = 'v1.7.6';
-const VERSION_CHANGE = 'Correção da Colinha Escolar: impressão/PDF agora exporta o documento completo, sem cortar apenas a parte visível do preview.';
+const VERSION = '1.7.9-ultra-atualizada';
+const VERSION_LABEL = 'v1.7.9';
+const VERSION_CHANGE = 'Colinha Ultra corrigida: a matriz seca agora já vem preenchida com Tenho, Repetidas e Faltantes do álbum atual.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1881,10 +1881,147 @@ function schoolLegend(mode='school'){
   if(mode === 'missing') return 'Mostra só o que ainda falta encontrar.';
   return 'Lista completa por seleção, já marcando o que você tem, as repetidas e o que ainda falta.';
 }
+
+
 function schoolCheck(checked){
   return `<span class="school-box ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</span>`;
 }
-function renderSchoolPrintable(mode='school', layout='compact'){
+function schoolStatusClass(item){
+  const q = qty(item.id);
+  if(q > 1) return 'duplicate';
+  if(q > 0) return 'owned';
+  return 'missing';
+}
+function schoolStatusLabel(item, mode='default'){
+  const q = qty(item.id);
+  if(q > 1) return `+${q - 1}`;
+  if(q > 0) return '✓';
+  return mode === 'ultra' ? '□' : '';
+}
+function schoolGridColumnHead(){
+  return Array.from({length:20}, (_, i) => `<th>${String(i + 1).padStart(2,'0')}</th>`).join('');
+}
+function schoolGridRow(section){
+  const items = sectionItems(section).sort((a,b)=>a.number-b.number);
+  const itemMapLocal = new Map(items.map(item => [Number(item.number), item]));
+  const cells = Array.from({length:20}, (_, i) => {
+    const item = itemMapLocal.get(i + 1);
+    if(!item){
+      return `<td class="school-grid-cell school-grid-na">—</td>`;
+    }
+    const statusClass = schoolStatusClass(item);
+    const label = schoolStatusLabel(item);
+    const aria = qty(item.id) > 1
+      ? `${item.ref}, ${qty(item.id)-1} repetidas`
+      : (qty(item.id) > 0 ? `${item.ref}, tenho` : `${item.ref}, faltando`);
+    return `<td class="school-grid-cell ${statusClass}" title="${escapeHtml(aria)}"><span>${escapeHtml(label)}</span></td>`;
+  }).join('');
+
+  const rowCode = escapeHtml(codeOf(section));
+  const rowName = escapeHtml(section.kind === 'team' ? section.name : (codeOf(section) === 'CC' ? 'Coca-Cola' : section.name));
+  const summary = `${items.filter(i=>qty(i.id)>0).length}/${items.length}`;
+  return `<tr>
+    <th class="school-grid-rowhead">
+      <div class="code">${rowCode}</div>
+      <div class="name">${rowName}</div>
+      <div class="sum">${summary}</div>
+    </th>
+    ${cells}
+  </tr>`;
+}
+function renderSchoolOnePagePrintable(){
+  const s = stats();
+  const generated = new Date().toLocaleDateString('pt-BR');
+  const rows = SECTION_LIST.map(s => schoolGridRow(s)).join('');
+  return `<div class="school-print-sheet school-grid-sheet">
+    <header class="school-grid-header">
+      <div class="school-grid-brand">
+        <img src="./brand-logo.png" alt="Meu Álbum da Copa">
+        <div>
+          <strong>Meu Álbum da Copa</strong>
+          <span>Colinha Escolar · 1 folha</span>
+        </div>
+      </div>
+      <div class="school-grid-meta">
+        <strong>Resumo geral para levar impresso</strong>
+        <span>${generated} · ${s.owned}/${s.total} coladas · ${s.duplicates} repetidas · ${s.total - s.owned} faltantes</span>
+      </div>
+    </header>
+    <div class="school-grid-legend-card">
+      <div class="school-grid-legend-title">Legenda rápida</div>
+      <div class="school-grid-legend">
+        <span><b class="legend-box missing"></b> Falta</span>
+        <span><b class="legend-box owned">✓</b> Tenho</span>
+        <span><b class="legend-box duplicate">+2</b> Repetidas</span>
+        <span class="school-grid-note">Últimas linhas: FWC 01–20 e CC 01–14.</span>
+      </div>
+    </div>
+    <table class="school-grid-table">
+      <thead>
+        <tr>
+          <th class="corner">Seleção</th>
+          ${schoolGridColumnHead()}
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <footer class="school-grid-footer">Folha branca · A4 paisagem · consulta rápida</footer>
+  </div>`;
+}
+function renderSchoolUltraPrintable(){
+  const s = stats();
+  const generated = new Date().toLocaleDateString('pt-BR');
+  const rows = SECTION_LIST.map(section => {
+    const items = sectionItems(section).sort((a,b)=>a.number-b.number);
+    const itemMapLocal = new Map(items.map(item => [Number(item.number), item]));
+    const cells = Array.from({length:20}, (_, i) => {
+      const item = itemMapLocal.get(i + 1);
+      if(!item){
+        return `<td class="school-grid-cell school-grid-na">·</td>`;
+      }
+      const statusClass = schoolStatusClass(item);
+      const label = schoolStatusLabel(item, 'ultra');
+      return `<td class="school-grid-cell ${statusClass}"><span>${escapeHtml(label)}</span></td>`;
+    }).join('');
+    return `<tr>
+      <th class="school-grid-rowhead ultra">
+        <div class="code">${escapeHtml(codeOf(section))}</div>
+      </th>
+      ${cells}
+    </tr>`;
+  }).join('');
+  return `<div class="school-print-sheet school-grid-sheet school-ultra-sheet">
+    <header class="school-grid-header ultra-head">
+      <div class="school-grid-brand">
+        <img src="./brand-logo.png" alt="Meu Álbum da Copa">
+        <div>
+          <strong>Meu Álbum da Copa</strong>
+          <span>Colinha Escolar · Ultra</span>
+        </div>
+      </div>
+      <div class="school-grid-meta">
+        <strong>Matriz seca</strong>
+        <span>${generated} · ${s.owned}/${s.total}</span>
+      </div>
+    </header>
+    <div class="school-grid-legend school-grid-legend-ultra">
+      <span><b class="legend-box missing">□</b> Falta</span>
+      <span><b class="legend-box owned">✓</b> Tenho</span>
+      <span><b class="legend-box duplicate">+2</b> Repetidas</span>
+    </div>
+    <table class="school-grid-table ultra-table">
+      <thead>
+        <tr>
+          <th class="corner ultra-corner">Sigla</th>
+          ${schoolGridColumnHead()}
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <footer class="school-grid-footer">Folha branca · ultra escolar · só código e quadradinhos</footer>
+  </div>`;
+}
+function renderSchoolDetailedPrintable(mode='school'){
   const rows = schoolListRows(mode);
   const s = stats();
   const generated = new Date().toLocaleDateString('pt-BR');
@@ -1933,15 +2070,13 @@ function renderSchoolPrintable(mode='school', layout='compact'){
         <th>Trocar por</th>
       </tr>`;
 
-  const layoutClass = layout === 'detailed' ? 'school-detailed' : 'school-compact';
-
-  return `<div class="school-print-sheet ${layoutClass} ${fullMode ? 'full' : 'partial'}">
+  return `<div class="school-print-sheet school-detailed-sheet">
     <header class="school-print-header">
       <div class="school-brand">
         <img src="./brand-logo.png" alt="Meu Álbum da Copa">
         <div>
           <strong>Meu Álbum da Copa</strong>
-          <span>Colinha Escolar · ${layout === 'detailed' ? 'Detalhada' : 'Compacta'}</span>
+          <span>Colinha Escolar · Detalhada</span>
         </div>
       </div>
       <div class="school-meta">
@@ -1957,8 +2092,97 @@ function renderSchoolPrintable(mode='school', layout='compact'){
       <thead>${head}</thead>
       <tbody>${itemRows || `<tr><td colspan="${fullMode ? 7 : 6}" class="center">Nada para listar neste filtro.</td></tr>`}</tbody>
     </table>
-    <footer class="school-footer">${layout === 'detailed' ? 'Modelo detalhado' : 'Modelo compacto'} · Folha branca para impressão · App independente de fãs · uso pessoal</footer>
+    <footer class="school-footer">Modelo detalhado · Folha branca para impressão · App independente de fãs · uso pessoal</footer>
   </div>`;
+}
+function renderSchoolPrintable(mode='school', layout='grid'){
+  if(layout === 'detailed') return renderSchoolDetailedPrintable(mode);
+  if(layout === 'ultra') return renderSchoolUltraPrintable();
+  return renderSchoolOnePagePrintable();
+}
+function schoolPrintDocument(mode='school', layout='grid'){
+  const preview = renderSchoolPrintable(mode, layout);
+  const orientation = layout === 'detailed' ? 'portrait' : 'landscape';
+  const printCss = `
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:#fff;color:#111;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+    @page{size:A4 ${orientation};margin:6mm}
+    html,body{overflow:visible !important}
+    body{padding:0}
+    .school-print-sheet{background:#fff;color:#111;width:100%}
+    .school-grid-sheet{font-size:7.2px}
+    .school-grid-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:6px}
+    .school-grid-brand,.school-brand{display:flex;gap:8px;align-items:center}
+    .school-grid-brand img,.school-brand img{width:32px;height:32px;border-radius:8px}
+    .school-grid-brand strong,.school-brand strong{display:block;font-size:12px}
+    .school-grid-brand span,.school-brand span,.school-grid-meta span,.school-meta span{display:block;font-size:8px;color:#555}
+    .school-grid-meta strong,.school-meta strong{display:block;font-size:10px}
+    .school-grid-legend-card{margin-bottom:6px;padding:5px 7px;border:1px solid #e4ddcb;border-radius:8px;background:#fbf7ec}
+    .school-grid-legend-title{font-size:7px;font-weight:800;color:#8d6b1f;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
+    .school-grid-legend{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:7.2px}
+    .school-grid-legend-ultra{margin:0 0 5px}
+    .legend-box{display:inline-flex;align-items:center;justify-content:center;width:12px;height:12px;border:1px solid #888;border-radius:3px;background:#fff;color:#111;font-weight:800;font-size:7px;margin-right:3px}
+    .legend-box.owned{background:#ededed}
+    .legend-box.duplicate{background:#f0d889;border-color:#a98813}
+    .school-grid-note{margin-left:auto;color:#666}
+    .school-grid-table{width:100%;border-collapse:collapse;table-layout:fixed}
+    .school-grid-table th,.school-grid-table td{border:1px solid #d5d5d5;text-align:center;padding:0}
+    .school-grid-table thead th{background:#f5f5f5;height:15px;font-size:6.3px}
+    .school-grid-table .corner{width:78px}
+    .school-grid-rowhead{padding:2px 3px !important;text-align:left !important;background:#fafafa;width:78px}
+    .school-grid-rowhead .code{font-size:8px;line-height:1;font-weight:900;color:#111}
+    .school-grid-rowhead .name{margin-top:1px;font-size:5.7px;line-height:1.05;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .school-grid-rowhead .sum{margin-top:1px;font-size:5.3px;color:#888}
+    .school-grid-rowhead.ultra{padding:0 4px !important}
+    .school-grid-rowhead.ultra .code{font-size:8px}
+    .ultra-corner{width:50px}
+    .ultra-table .corner{width:50px}
+    .ultra-table .school-grid-rowhead{width:50px}
+    .ultra-table .school-grid-cell{height:12px;font-size:6.8px}
+    .school-grid-cell{height:14px;font-size:7px;font-weight:900;color:#111}
+    .school-grid-cell span{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+    .school-grid-cell.missing{background:#fff}
+    .school-grid-cell.owned{background:#ededed}
+    .school-grid-cell.duplicate{background:#f0d889}
+    .school-grid-cell.school-grid-na{background:#fafafa;color:#bbb;font-size:5px}
+    .school-grid-footer{margin-top:5px;font-size:7px;color:#555;text-align:right}
+    .school-print-header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:10px}
+    .school-meta{max-width:54%;text-align:right}
+    .school-legend-bar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;font-size:10px;color:#555}
+    .school-mini-legend{display:flex;gap:10px;align-items:center}
+    .school-table{width:100%;border-collapse:collapse;font-size:10px}
+    .school-table th,.school-table td{border:1px solid #ddd;padding:5px 6px;vertical-align:middle}
+    .school-table th{background:#f5f5f5}
+    .school-table .center{text-align:center}
+    .school-table .write{width:68px}
+    .school-section-row td{background:#faf3df;font-weight:700}
+    .school-box{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:1px solid #888;border-radius:3px}
+    .school-box.checked{background:#ececec}
+    .reps{font-weight:700}
+    .school-footer{margin-top:8px;font-size:9px;color:#555;text-align:right}
+  `;
+  const title = layout === 'detailed' ? 'Colinha Escolar Detalhada' : (layout === 'ultra' ? 'Colinha Escolar Ultra' : 'Colinha Escolar 1 Folha');
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>${printCss}</style></head><body>${preview}</body></html>`;
+}
+function printSchoolList(mode='school', layout='grid'){
+  const html = schoolPrintDocument(mode, layout);
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){
+    safeToast('O navegador bloqueou a impressão. Libere pop-up e tente de novo.');
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  setTimeout(() => {
+    try{
+      printWindow.focus();
+      printWindow.print();
+    }catch(e){
+      console.error(e);
+      safeToast('Não consegui abrir a impressão automaticamente.');
+    }
+  }, 500);
 }
 function openSchoolList(){
   const modal = ensureAppModal();
@@ -1967,51 +2191,67 @@ function openSchoolList(){
     <button class="modal-close" id="closeSchoolList" type="button">×</button>
     <span class="label">Colinha Escolar</span>
     <h3>Planilha branca para imprimir</h3>
-    <p class="muted">Leva em conta o que você já tem, as repetidas e o que ainda falta. Ideal para imprimir e levar ao colégio.</p>
-    <div class="school-controls school-controls-v175">
-      <select id="schoolListMode">
-        <option value="school">Colinha completa</option>
-        <option value="missing">Só faltantes</option>
-        <option value="duplicates">Só repetidas</option>
-        <option value="owned">Só tenho</option>
-      </select>
+    <p class="muted">Escolha o modelo ideal para impressão: 1 folha, ultra escolar ou detalhada.</p>
+    <div class="school-controls school-controls-v178">
+      <div id="schoolModeWrap">
+        <select id="schoolListMode">
+          <option value="school">Colinha completa</option>
+          <option value="missing">Só faltantes</option>
+          <option value="duplicates">Só repetidas</option>
+          <option value="owned">Só tenho</option>
+        </select>
+      </div>
 
-      <button id="schoolLayoutSwitch" class="school-layout-switch" type="button" aria-pressed="false" aria-label="Alternar modelo da colinha">
-        <span class="layout-option compact-label">Compacta</span>
-        <span class="switch-track"><i></i></span>
+      <button id="schoolLayoutSwitch" class="school-layout-switch school-layout-switch-3" type="button" aria-label="Alternar modelo da colinha">
+        <span class="layout-option ultra-label is-active">Ultra</span>
+        <span class="layout-option grid-label">1 folha</span>
         <span class="layout-option detailed-label">Detalhada</span>
       </button>
 
       <button class="btn primary" id="printSchoolList" type="button">Imprimir / PDF</button>
       <button class="btn" id="copySchoolCsv" type="button">Copiar CSV</button>
     </div>
-    <div id="schoolPrintPreview">${renderSchoolPrintable('school', 'compact')}</div>
+    <div id="schoolPrintPreview">${renderSchoolPrintable('school', 'ultra')}</div>
   </div>`;
 
   const close = () => {
     modal?.classList?.remove('show');
     if(modal) modal.innerHTML = '';
   };
-  let schoolLayout = 'compact';
+  const layouts = ['ultra','grid','detailed'];
+  let schoolLayoutIndex = 0;
+
+  const updateLayoutButton = () => {
+    const current = layouts[schoolLayoutIndex];
+    const btn = $('#schoolLayoutSwitch');
+    if(!btn) return;
+    $$('.layout-option', btn).forEach(el => el.classList.remove('is-active'));
+    $('.ultra-label', btn)?.classList.toggle('is-active', current === 'ultra');
+    $('.grid-label', btn)?.classList.toggle('is-active', current === 'grid');
+    $('.detailed-label', btn)?.classList.toggle('is-active', current === 'detailed');
+  };
+
   const refreshSchoolPreview = () => {
+    const schoolLayout = layouts[schoolLayoutIndex];
     const mode = $('#schoolListMode')?.value || 'school';
-    $('#schoolPrintPreview').innerHTML = renderSchoolPrintable(mode, schoolLayout);
+    const modeWrap = $('#schoolModeWrap');
+    if(modeWrap) modeWrap.hidden = schoolLayout !== 'detailed';
+    const preview = $('#schoolPrintPreview');
+    if(preview) preview.innerHTML = renderSchoolPrintable(mode, schoolLayout);
+    updateLayoutButton();
   };
 
   $('#closeSchoolList')?.addEventListener('click', close);
   $('#schoolListMode')?.addEventListener('change', refreshSchoolPreview);
   $('#schoolLayoutSwitch')?.addEventListener('click', () => {
-    schoolLayout = schoolLayout === 'compact' ? 'detailed' : 'compact';
-    const btn = $('#schoolLayoutSwitch');
-    btn?.classList?.toggle('is-detailed', schoolLayout === 'detailed');
-    btn?.setAttribute('aria-pressed', schoolLayout === 'detailed' ? 'true' : 'false');
+    schoolLayoutIndex = (schoolLayoutIndex + 1) % layouts.length;
     refreshSchoolPreview();
   });
   $('#printSchoolList')?.addEventListener('click', () => {
-    document.body.classList.add('printing-school-list');
-    setTimeout(() => window.print(), 80);
+    const mode = $('#schoolListMode')?.value || 'school';
+    const schoolLayout = layouts[schoolLayoutIndex];
+    printSchoolList(mode, schoolLayout);
   });
-  window.addEventListener('afterprint', () => document.body.classList.remove('printing-school-list'), {once:true});
   $('#copySchoolCsv')?.addEventListener('click', () => {
     const mode = $('#schoolListMode')?.value || 'school';
     const rows = schoolListRows(mode).filter(r=>r.type === 'item');
@@ -2025,7 +2265,10 @@ function openSchoolList(){
       .join('\n');
     copyText(csv);
   });
+
+  refreshSchoolPreview();
 }
+
 
 function renderTrades(){
   const statusOptions = ['Disponível','Em negociação','Reservada','Concluída'];
