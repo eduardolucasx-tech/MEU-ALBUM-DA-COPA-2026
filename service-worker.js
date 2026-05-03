@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-4-5-fix-copiar-trocas';
+const CACHE='meu-album-copa-v1-4-7-export-sem-zero';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',

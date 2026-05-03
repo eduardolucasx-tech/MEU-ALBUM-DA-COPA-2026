@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.4.5-fix-copiar-trocas';
-const VERSION_LABEL = 'v1.4.5';
-const VERSION_CHANGE = 'Correção da cópia de listas na aba Trocas: função de copiar restaurada com fallback compatível com Safari/iPhone e PWA.';
+const VERSION = '1.4.7-export-repetidas-sem-zero';
+const VERSION_LABEL = 'v1.4.7';
+const VERSION_CHANGE = 'Exportação de repetidas refinada: números agora saem sem zero à esquerda, mantendo o formato por seleção e quantidade de repetidas.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1119,6 +1119,24 @@ function formatList(filter, mode='default'){
 }
 
 
+
+function formatDuplicateTradeList(){
+  const rows = [];
+  SECTION_LIST.forEach(sec => {
+    const items = sectionItems(sec)
+      .filter(i => qty(i.id) > 1)
+      .sort((a,b)=>a.number-b.number);
+
+    if(items.length){
+      rows.push(`${codeOf(sec)}:`);
+      rows.push(items.map(i => `${Number(i.number)} (${extras(i)} ${extras(i) === 1 ? 'rep' : 'reps'})`).join(', '));
+      rows.push('');
+    }
+  });
+
+  return rows.join('\n').trim() || 'Sem repetidas no momento.';
+}
+
 function parseRefsFromText(raw){
   const text = String(raw || '').toUpperCase();
   const found = [];
@@ -1371,7 +1389,7 @@ function renderTrades(){
 
   $('#copyDup').addEventListener('click', async (ev)=>{
     ev.preventDefault();
-    await copyText(`🔁 Repetidas:\n${formatList(i=>qty(i.id)>1,'dup')}`);
+    await copyText(`🔁 Repetidas:\n${formatDuplicateTradeList()}`);
   });
   $('#copyMissing').addEventListener('click', async (ev)=>{
     ev.preventDefault();
@@ -1513,7 +1531,7 @@ function renderTrades(){
 
   renderTradeList();
 }
-function renderMissing(){ const missing=formatList(i=>qty(i.id)===0); const owned=formatList(i=>qty(i.id)>0); const dup=formatList(i=>qty(i.id)>1,'dup'); $('#view-missing').innerHTML = `<section class="card"><span class="label">Faltantes</span><div id="missingBox" class="copy-box">${escapeHtml(missing)}</div><button class="btn primary full" data-copy="missingBox">Copiar faltantes</button></section><section class="card"><span class="label">Tenho</span><div id="ownedBox" class="copy-box">${escapeHtml(owned)}</div><button class="btn full" data-copy="ownedBox">Copiar tenho</button></section><section class="card"><span class="label">Repetidas</span><div id="dupBox" class="copy-box">${escapeHtml(dup)}</div><button class="btn full" data-copy="dupBox">Copiar repetidas</button></section>`; $$('[data-copy]').forEach(b=>b.addEventListener('click',()=>copyText($(`#${b.dataset.copy}`).textContent))); }
+function renderMissing(){ const missing=formatList(i=>qty(i.id)===0); const owned=formatList(i=>qty(i.id)>0); const dup=formatDuplicateTradeList(); $('#view-missing').innerHTML = `<section class="card"><span class="label">Faltantes</span><div id="missingBox" class="copy-box">${escapeHtml(missing)}</div><button class="btn primary full" data-copy="missingBox">Copiar faltantes</button></section><section class="card"><span class="label">Tenho</span><div id="ownedBox" class="copy-box">${escapeHtml(owned)}</div><button class="btn full" data-copy="ownedBox">Copiar tenho</button></section><section class="card"><span class="label">Repetidas</span><div id="dupBox" class="copy-box">${escapeHtml(dup)}</div><button class="btn full" data-copy="dupBox">Copiar repetidas</button></section>`; $$('[data-copy]').forEach(b=>b.addEventListener('click',()=>copyText($(`#${b.dataset.copy}`).textContent))); }
 
 function profileStatsCards(){
   const s = stats();
