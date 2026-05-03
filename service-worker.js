@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-6-2-trocai-switch-premium';
+const CACHE='meu-album-copa-v1-6-5-perfil-final-enxuto';
 const APP_SHELL=[
   './',
   './index.html',

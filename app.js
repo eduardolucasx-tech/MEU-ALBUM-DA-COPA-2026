@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.6.2-trocai-switch-premium';
-const VERSION_LABEL = 'v1.6.2';
-const VERSION_CHANGE = 'Trocaí Beta polido: alternância Manual/Trocaí virou switcher premium no estilo da ordem do álbum, com leitura mais compacta, clara e refinada no mobile.';
+const VERSION = '1.6.5-perfil-final-enxuto';
+const VERSION_LABEL = 'v1.6.5';
+const VERSION_CHANGE = 'Perfil reorganizado em blocos mais claros: Painel, Estimativa, Família e Conta, Ferramentas e Ajuda & Legal, com menos redundância visual.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1503,7 +1503,6 @@ function bindCompareTool(){
 
     const toggle = $('#trocaiModeBtn');
     if(toggle){
-      toggle.classList.toggle('is-alpha', trocaiMode === 'code');
       toggle.classList.toggle('is-code', trocaiMode === 'code');
       toggle.setAttribute('aria-pressed', trocaiMode === 'code' ? 'true' : 'false');
     }
@@ -1529,9 +1528,7 @@ function bindCompareTool(){
     }
   };
 
-  $('#trocaiModeBtn')?.addEventListener('click', () => {
-    setMode(trocaiMode === 'manual' ? 'code' : 'manual');
-  });
+  $('#trocaiModeBtn')?.addEventListener('click', () => setMode(trocaiMode === 'manual' ? 'code' : 'manual'));
 
   $('#runCompare')?.addEventListener('click', renderCompareResultFromFields);
   $('#clearCompare')?.addEventListener('click', () => {
@@ -1592,6 +1589,7 @@ function renderTrades(){
   let listWasOpened = false;
 
   $('#view-trades').innerHTML = `
+
     <section class="grid kpis trade-kpis trade-overview">
       ${kpi('Disponíveis', counters.available)}
       ${kpi('Negociação', counters.negotiating)}
@@ -1599,10 +1597,19 @@ function renderTrades(){
       ${kpi('Concluídas', counters.done)}
     </section>
 
-    <section class="card trade-summary-card">
-      <span class="label">Resumo para WhatsApp</span>
-      <p class="muted">Listas formatadas por seleção para mandar no grupo. Use também a proposta abaixo para cruzar listas.</p>
-      <div class="button-row trade-actions">
+    <section class="card trade-summary-card trade-summary-card-refined">
+      <div class="trade-summary-head">
+        <div>
+          <span class="label">Listas para compartilhar</span>
+          <h3>Resumo rápido de trocas</h3>
+          <p class="muted">Copie suas listas formatadas para WhatsApp e use a proposta abaixo para cruzar figurinhas com outra pessoa.</p>
+        </div>
+        <div class="trade-mini-stats">
+          <span><strong>${stats().duplicates}</strong><small>repetidas</small></span>
+          <span><strong>${stats().missing}</strong><small>faltantes</small></span>
+        </div>
+      </div>
+      <div class="button-row trade-actions refined-actions">
         <button class="btn primary" id="copyDup">Copiar repetidas</button>
         <button class="btn" id="copyMissing">Copiar faltantes</button>
       </div>
@@ -1960,7 +1967,7 @@ function termsText(){
 function aboutAppText(){
   return `<p><strong>Meu Álbum da Copa 2026</strong> é um app/PWA para controlar figurinhas, repetidas, faltantes, trocas, progresso e álbum familiar.</p>
   <p>Versão atual: <strong>${VERSION_LABEL}</strong> · ${escapeHtml(VERSION)}</p>
-  <p>“Não sei nem como fiz, só sei que fiz!” VIVEIROS, Lucas.</p>`;
+  <p>Projeto pensado para uso real: controle, trocas, sincronização e organização do álbum em um só lugar.</p>`;
 }
 function sendFeedback(){
   const subject = encodeURIComponent('Feedback - Meu Álbum da Copa 2026');
@@ -1968,16 +1975,21 @@ function sendFeedback(){
   location.href = `mailto:?subject=${subject}&body=${body}`;
 }
 function renderSettingsHub(){
-  return `<section class="card settings-hub">
-    <span class="label">Ajuda e informações</span>
-    <h3>Suporte, documentos e feedback</h3>
-    <div class="settings-list">
-      <button data-info="tips"><span>💡</span><b>Dicas de uso</b><small>Aprenda os atalhos principais</small></button>
-      <button data-info="feedback"><span>⭐</span><b>Avaliar / Feedback</b><small>Enviar sugestão ou problema</small></button>
-      <button data-info="about"><span>ℹ️</span><b>Sobre o app</b><small>Versão, autoria e detalhes</small></button>
-      <button data-info="privacy"><span>🛡️</span><b>Política de Privacidade</b><small>Dados locais, Google e Firebase</small></button>
-      <button data-info="terms"><span>📄</span><b>Termos de Uso</b><small>Uso, família e responsabilidade</small></button>
-      <button data-info="legal"><span>⚖️</span><b>Aviso Legal</b><small>App independente de fãs</small></button>
+  return `<section class="card settings-hub settings-hub-compact">
+    <div class="settings-hub-head">
+      <div>
+        <span class="label">Ajuda e informações</span>
+        <h3>Acessos rápidos</h3>
+      </div>
+      <p class="muted">Tudo o que você precisa sobre uso, suporte e documentos.</p>
+    </div>
+    <div class="settings-list compact-settings-list">
+      <button data-info="tips"><span>💡</span><b>Dicas de uso</b><small>Atalhos principais</small></button>
+      <button data-info="feedback"><span>⭐</span><b>Feedback</b><small>Sugestão ou problema</small></button>
+      <button data-info="about"><span>ℹ️</span><b>Sobre o app</b><small>Versão e detalhes</small></button>
+      <button data-info="privacy"><span>🛡️</span><b>Privacidade</b><small>Dados e Firebase</small></button>
+      <button data-info="terms"><span>📄</span><b>Termos de uso</b><small>Uso e responsabilidade</small></button>
+      <button data-info="legal"><span>⚖️</span><b>Aviso legal</b><small>App independente</small></button>
     </div>
   </section>`;
 }
@@ -2009,69 +2021,84 @@ function renderProfile(){
           <span class="label">Painel do colecionador</span>
           <h2>${escapeHtml(level.name)}</h2>
           <p class="muted">${escapeHtml(level.desc)}</p>
-
           <div class="collector-summary-row">
             <span class="pill soft">${s.owned} coladas</span>
             <span class="pill soft">${s.duplicates} repetidas</span>
           </div>
         </div>
-
         <div class="ring"><div><strong>${pct(s.progress)}</strong><span>total</span></div></div>
       </div>
-
       <div class="stats-grid compact-stats">
         <div class="stat-tile"><strong>${s.completeTeams}</strong><span>seleções completas</span></div>
         <div class="stat-tile"><strong>${escapeHtml(mostComplete?.code || '-')}</strong><span>mais avançada</span></div>
         <div class="stat-tile"><strong>${escapeHtml(leastComplete?.code || '-')}</strong><span>mais atrasada</span></div>
         <div class="stat-tile"><strong>${topDup.length ? escapeHtml(topDup[0].ref) : '-'}</strong><span>top repetida</span></div>
       </div>
-
       <div class="mini-list compact-mini-list">
         ${topDup.length ? topDup.map(i=>`<div class="row"><div><strong>${escapeHtml(i.ref)}</strong><small>${escapeHtml(stickerDisplayName(i))}</small></div><b>+${extras(i)}</b></div>`).join('') : '<div class="empty">Sem repetidas ainda.</div>'}
       </div>
     </section>
-
     ${renderEstimatePanel()}
-    ${renderFamilyCard()}
+    <section class="profile-section-block">
+      <div class="profile-section-title">
+        <span class="label">Perfil</span>
+        <h3>Família e conta</h3>
+        <p class="muted">Gerencie quem edita o álbum e como ele sincroniza.</p>
+      </div>
+      <div class="profile-grid profile-grid-refined profile-paired-grid">
+        ${renderFamilyCard()}
+        <section class="card profile-account-card">
+          <span class="label">Conta e sincronização</span>
+          <h3>${cloud.user ? 'Google conectado' : 'Modo local'}</h3>
+          <p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p>
+          <p class="muted sync-mini">Modo atual: <strong>${activeAlbumLabel()}</strong> · Última alteração local: ${state.updatedAt ? new Date(state.updatedAt).toLocaleString('pt-BR') : 'sem registro'}</p>
+          <div class="button-row">
+            <button class="btn primary" id="loginBtn">${cloud.user ? 'Trocar conta' : 'Entrar com Google'}</button>
+            <button class="btn" id="logoutBtn">Sair</button>
+            <button class="btn" id="syncNow">Sincronizar</button>
+          </div>
+        </section>
+      </div>
+    </section>
     ${renderAdsPlaceholder('perfil')}
-
-    <section class="profile-grid">
-      <div class="card">
-        <span class="label">Conta e sincronização</span>
-        <h3>${cloud.user ? 'Google conectado' : 'Modo local'}</h3>
-        <p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p>
-        <p class="muted sync-mini">Modo atual: <strong>${activeAlbumLabel()}</strong> · Última alteração local: ${state.updatedAt ? new Date(state.updatedAt).toLocaleString('pt-BR') : 'sem registro'}</p>
-        <div class="button-row">
-          <button class="btn primary" id="loginBtn">${cloud.user ? 'Trocar conta' : 'Entrar com Google'}</button>
-          <button class="btn" id="logoutBtn">Sair</button>
-          <button class="btn" id="syncNow">Sincronizar</button>
-        </div>
+    <section class="profile-section-block">
+      <div class="profile-section-title">
+        <span class="label">Ferramentas</span>
+        <h3>Dados e compartilhamento</h3>
+        <p class="muted">Compartilhe o app, exporte backup e restaure seu álbum quando precisar.</p>
       </div>
-
-      <div class="card">
-        <span class="label">Backup e ferramentas</span>
-        <h3>Proteção dos seus dados</h3>
-        <p class="muted">Faça backup antes de mudanças grandes. JSON é para segurança/restauração; álbum familiar é sincronização compartilhada.</p>
-        <div class="button-row tools-actions">
-          <button class="btn primary" id="shareAppBtn" type="button">Compartilhar app</button>
-          <button class="btn" id="exportJson">Exportar backup</button>
-          <label class="btn import-json-btn"><input id="importJson" type="file" accept="application/json" hidden><span>Restaurar JSON</span></label>
-          <button class="btn danger" id="resetAll">Zerar tudo</button>
-        </div>
-        <p class="muted tools-note">Use <strong>Exportar backup</strong> antes de importar, sair de álbum ou trocar de modo. <strong>Restaurar JSON</strong> substitui o álbum atual.</p>
+      <div class="profile-grid profile-grid-refined">
+        <section class="card profile-tools-card">
+          <span class="label">Backup e ferramentas</span>
+          <h3>Proteção dos seus dados</h3>
+          <p class="muted">Faça backup antes de mudanças grandes. JSON é para segurança e restauração; álbum familiar é sincronização compartilhada.</p>
+          <div class="button-row tools-actions">
+            <button class="btn primary" id="shareAppBtn" type="button">Compartilhar app</button>
+            <button class="btn" id="exportJson">Exportar backup</button>
+            <label class="btn import-json-btn"><input id="importJson" type="file" accept="application/json" hidden><span>Restaurar JSON</span></label>
+            <button class="btn danger" id="resetAll">Zerar tudo</button>
+          </div>
+          <p class="muted tools-note">Use <strong>Exportar backup</strong> antes de importar, sair de álbum ou trocar de modo. <strong>Restaurar JSON</strong> substitui o álbum atual.</p>
+        </section>
       </div>
-
-      ${renderSettingsHub()}
-
-      <div class="card about-card">
-        <span class="label">Sobre</span>
-        <h3>Meu Álbum da Copa 2026</h3>
-        <div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div>
-        <p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p>
-        <p class="muted">“Não sei nem como fiz, só sei que fiz!” VIVEIROS, Lucas.</p>
+    </section>
+    <section class="profile-section-block">
+      <div class="profile-section-title">
+        <span class="label">Ajuda & legal</span>
+        <h3>Suporte e documentos</h3>
+        <p class="muted">Atalhos rápidos para dicas, feedback, política, termos e informações do app.</p>
+      </div>
+      <div class="profile-grid profile-grid-refined profile-help-grid">
+        ${renderSettingsHub()}
+        <section class="card profile-version-footnote">
+          <span class="label">Versão atual</span>
+          <h3>${VERSION_LABEL}</h3>
+          <div class="version-box"><strong>${VERSION_LABEL}</strong><span>${VERSION}</span></div>
+          <p class="muted"><strong>Mudança desta versão:</strong> ${escapeHtml(VERSION_CHANGE)}</p>
+          <p class="muted">O detalhamento completo continua disponível no atalho <strong>Sobre o app</strong>.</p>
+        </section>
       </div>
     </section>`;
-
   bindEstimatePanel();
   bindSettingsHub();
   bindFamilyCard();
