@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.5.8-trocas-leve';
-const VERSION_LABEL = 'v1.5.8';
-const VERSION_CHANGE = 'Aba Trocas otimizada: a lista grande de repetidas agora carrega sob demanda em gaveta, com paginação e menos peso ao abrir a tela.';
+const VERSION = '1.6.0-trocai-manual-toggle';
+const VERSION_LABEL = 'v1.6.0';
+const VERSION_CHANGE = 'Trocaí Beta iniciado: a proposta de troca agora alterna entre código Trocaí e troca manual, mantendo comparação por listas para quem ainda não usa o app.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1323,24 +1323,62 @@ function tradeListText(items, prefix='-'){
     ? items.map(i => `${prefix} ${i.ref} — ${stickerDisplayName(i)}${isSpecialTradeSticker(i) ? ' [ESPECIAL]' : ''}`).join('\\n')
     : `${prefix} nada selecionado`;
 }
+
+function getLocalTrocaiCode(){
+  const KEY = 'meu-album-copa-trocai-code';
+  let code = localStorage.getItem(KEY);
+  if(!code){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    code = 'TROCA-';
+    for(let i=0;i<5;i++) code += chars[Math.floor(Math.random()*chars.length)];
+    localStorage.setItem(KEY, code);
+  }
+  return code;
+}
+
 function renderCompareTool(){
-  return `<section class="card compare-card">
-    <span class="label">Proposta de troca</span>
-    <h3>Monte uma troca estilo Steam</h3>
-    <p class="muted">Cole as listas da outra pessoa. Depois escolha manualmente quais figurinhas entram na proposta.</p>
+  return `<section class="card compare-card trocai-card">
+    <span class="label">Trocaí Beta</span>
+    <h3>Proposta de troca</h3>
+    <p class="muted">Compare com alguém usando o código Trocaí ou cole listas manualmente quando a pessoa ainda não usa o app.</p>
 
-    <label class="compare-label">Repetidas da outra pessoa <small>O que ela pode te enviar</small></label>
-    <textarea id="otherDupInput" rows="4" placeholder="Ex.: BRA 10&#10;MEX 15&#10;FWC 01"></textarea>
-
-    <label class="compare-label">Faltantes da outra pessoa <small>O que ela precisa de você</small></label>
-    <textarea id="otherMissingInput" rows="4" placeholder="Ex.: RSA 04&#10;ARG 07&#10;BRA 13"></textarea>
-
-    <div class="button-row">
-      <button class="btn primary" id="runCompare" type="button">Gerar proposta</button>
-      <button class="btn" id="clearCompare" type="button">Limpar</button>
+    <div class="mode-switch trocai-mode-switch" role="group" aria-label="Modo de comparação">
+      <button class="active" type="button" data-trocai-mode="manual">Troca manual</button>
+      <button type="button" data-trocai-mode="code">Código Trocaí</button>
     </div>
 
-    <div id="compareResult" class="compare-result empty">Cole as listas e toque em gerar proposta.</div>
+    <div id="manualTradeMode" class="trocai-mode-panel active">
+      <label class="compare-label">Repetidas da outra pessoa <small>O que ela pode te enviar</small></label>
+      <textarea id="otherDupInput" rows="4" placeholder="Ex.: BRA 10&#10;MEX 15&#10;FWC 01"></textarea>
+
+      <label class="compare-label">Faltantes da outra pessoa <small>O que ela precisa de você</small></label>
+      <textarea id="otherMissingInput" rows="4" placeholder="Ex.: RSA 04&#10;ARG 07&#10;BRA 13"></textarea>
+
+      <div class="button-row">
+        <button class="btn primary" id="runCompare" type="button">Gerar proposta manual</button>
+        <button class="btn" id="clearCompare" type="button">Limpar</button>
+      </div>
+    </div>
+
+    <div id="codeTradeMode" class="trocai-mode-panel" hidden>
+      <div class="trocai-code-box">
+        <span class="label">Meu código Trocaí</span>
+        <strong id="myTrocaiCode">${escapeHtml(getLocalTrocaiCode())}</strong>
+        <small class="muted">Preparado para comparar álbuns pela nuvem em uma próxima fase.</small>
+      </div>
+
+      <label class="compare-label">Código Trocaí da outra pessoa <small>Para quem também usa o app</small></label>
+      <input id="otherTrocaiCode" class="search" placeholder="Ex.: TROCA-8K2P7" autocomplete="off" autocapitalize="characters" spellcheck="false">
+
+      <div class="button-row">
+        <button class="btn primary" id="compareTrocaiCode" type="button">Comparar código</button>
+        <button class="btn" id="copyMyTrocaiCode" type="button">Copiar meu código</button>
+      </div>
+
+      <p class="muted tools-note">Nesta etapa, o modo por código já fica desenhado. A publicação/leitura pública na nuvem entra na próxima evolução do Trocaí.</p>
+    </div>
+
+    <div id="compareResult" class="compare-result empty">Escolha o modo e gere uma proposta.</div>
   </section>`;
 }
 function renderProposalItem(item, side, checked=true){
@@ -1454,18 +1492,56 @@ function renderCompareResultFromFields(){
   updateSummary();
 }
 function bindCompareTool(){
+  const setMode = (mode) => {
+    $$('[data-trocai-mode]').forEach(btn => btn.classList.toggle('active', btn.dataset.trocaiMode === mode));
+    const manual = $('#manualTradeMode');
+    const code = $('#codeTradeMode');
+
+    if(manual){
+      manual.hidden = mode !== 'manual';
+      manual.classList.toggle('active', mode === 'manual');
+    }
+    if(code){
+      code.hidden = mode !== 'code';
+      code.classList.toggle('active', mode === 'code');
+    }
+
+    const result = $('#compareResult');
+    if(result){
+      result.className = 'compare-result empty';
+      result.textContent = mode === 'manual'
+        ? 'Cole as listas e gere uma proposta manual.'
+        : 'Digite um código Trocaí quando a comparação por nuvem estiver ativada.';
+    }
+  };
+
+  $$('[data-trocai-mode]').forEach(btn => btn.addEventListener('click', () => setMode(btn.dataset.trocaiMode)));
+
   $('#runCompare')?.addEventListener('click', renderCompareResultFromFields);
   $('#clearCompare')?.addEventListener('click', () => {
-    $('#otherDupInput').value = '';
-    $('#otherMissingInput').value = '';
+    if($('#otherDupInput')) $('#otherDupInput').value = '';
+    if($('#otherMissingInput')) $('#otherMissingInput').value = '';
     const result = $('#compareResult');
     if(result){
       result.className = 'compare-result empty';
       result.textContent = 'Cole as listas e toque em gerar proposta.';
     }
   });
-}
 
+  $('#copyMyTrocaiCode')?.addEventListener('click', () => copyText(`Meu código Trocaí: ${getLocalTrocaiCode()}`));
+  $('#compareTrocaiCode')?.addEventListener('click', () => {
+    const code = ($('#otherTrocaiCode')?.value || '').trim().toUpperCase();
+    const result = $('#compareResult');
+    if(!code){
+      safeToast('Digite um código Trocaí.');
+      return;
+    }
+    if(result){
+      result.className = 'compare-result empty';
+      result.innerHTML = `<div class="empty">Código <strong>${escapeHtml(code)}</strong> recebido. A comparação automática por código entra na próxima fase do Trocaí. Por enquanto, use <strong>Troca manual</strong> para colar as listas da pessoa.</div>`;
+    }
+  });
+}
 function renderTrades(){
   const statusOptions = ['Disponível','Em negociação','Reservada','Concluída'];
   const normalizeTradeStatus = (value) => {
