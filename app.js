@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.4.7-export-repetidas-sem-zero';
-const VERSION_LABEL = 'v1.4.7';
-const VERSION_CHANGE = 'Exportação de repetidas refinada: números agora saem sem zero à esquerda, mantendo o formato por seleção e quantidade de repetidas.';
+const VERSION = '1.5.0-scanner-beta-perf';
+const VERSION_LABEL = 'v1.5.0';
+const VERSION_CHANGE = 'Scanner Beta adicionado na aba Adicionar, com leitura por câmera/OCR, confirmação manual antes de lançar e melhorias de estrutura para manter o app mais leve em uso real.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1032,6 +1032,181 @@ function packStats(){
   return {unique,total,dup};
 }
 
+
+let scannerStream = null;
+let scannerBusy = false;
+let scannerLastResult = null;
+
+function normalizeScannerText(raw){
+  return String(raw || '')
+    .toUpperCase()
+    .replace(/[|]/g,'I')
+    .replace(/\b([A-Z]{2,4})\s*[OQ]\s*(\d)\b/g,'$1 0$2')
+    .replace(/\b([A-Z]{2,4})\s*I(\d)\b/g,'$1 1$2')
+    .replace(/\b([A-Z]{2,4})\s*L(\d)\b/g,'$1 1$2')
+    .replace(/\b([A-Z]{2,4})\s*O(\d)\b/g,'$1 0$2')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+function extractStickerCodeFromOcr(raw){
+  const text = normalizeScannerText(raw);
+  const direct = findCandidates(text);
+  if(direct.length) return direct[0];
+
+  const re = /\b([A-Z]{2,4}|FWC|CC|PAN)\s*[-:]?\s*([0-9]{1,2})\b/g;
+  let m;
+  while((m = re.exec(text))){
+    const code = m[1];
+    const num = Number(m[2]);
+    const item = albumItems.find(i => (String(codeOf(i)).toUpperCase() === code || String(i.code).toUpperCase() === code) && Number(i.number) === num);
+    if(item) return item;
+  }
+
+  return null;
+}
+
+function loadTesseract(){
+  return new Promise((resolve, reject) => {
+    if(window.Tesseract) return resolve(window.Tesseract);
+    const existing = document.querySelector('script[data-tesseract]');
+    if(existing){
+      existing.addEventListener('load',()=>resolve(window.Tesseract));
+      existing.addEventListener('error',reject);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    script.async = true;
+    script.dataset.tesseract = '1';
+    script.onload = () => resolve(window.Tesseract);
+    script.onerror = () => reject(new Error('Não consegui carregar o OCR.'));
+    document.head.appendChild(script);
+  });
+}
+
+async function startScannerBeta(){
+  const video = $('#scannerVideo');
+  const status = $('#scannerStatus');
+  if(!navigator.mediaDevices?.getUserMedia){
+    status.textContent = 'Câmera não disponível neste navegador.';
+    return;
+  }
+
+  try{
+    stopScannerBeta();
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: {ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
+      audio: false
+    });
+    video.srcObject = scannerStream;
+    await video.play();
+    $('.scanner-preview')?.classList.add('active');
+    status.textContent = 'Aponte a câmera para o código do verso e toque em Ler código.';
+  }catch(e){
+    console.warn('scanner camera failed', e);
+    status.textContent = 'Não consegui acessar a câmera. Verifique a permissão do navegador.';
+  }
+}
+
+function stopScannerBeta(){
+  if(scannerStream){
+    scannerStream.getTracks().forEach(t=>t.stop());
+    scannerStream = null;
+  }
+  const video = $('#scannerVideo');
+  if(video) video.srcObject = null;
+  $('.scanner-preview')?.classList.remove('active');
+}
+
+function scannerCanvasFromVideo(video){
+  const canvas = document.createElement('canvas');
+  const vw = video.videoWidth || 1280;
+  const vh = video.videoHeight || 720;
+
+  const cropW = Math.floor(vw * 0.62);
+  const cropH = Math.floor(vh * 0.22);
+  const cropX = Math.floor((vw - cropW) / 2);
+  const cropY = Math.floor((vh - cropH) / 2);
+
+  canvas.width = cropW * 2;
+  canvas.height = cropH * 2;
+  const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = img.data;
+  for(let i=0;i<data.length;i+=4){
+    const gray = (data[i]*0.299 + data[i+1]*0.587 + data[i+2]*0.114);
+    const contrast = Math.max(0, Math.min(255, (gray - 128) * 1.8 + 128));
+    const bw = contrast > 145 ? 255 : 0;
+    data[i] = data[i+1] = data[i+2] = bw;
+  }
+  ctx.putImageData(img,0,0);
+
+  return canvas;
+}
+
+function renderScannerResult(item, rawText=''){
+  const box = $('#scannerResult');
+  scannerLastResult = item;
+  if(!item){
+    box.innerHTML = `<div class="empty">Não encontrei um código válido. Tente aproximar, melhorar a luz ou digitar manualmente.</div>
+    ${rawText ? `<small class="muted">OCR leu: ${escapeHtml(normalizeScannerText(rawText)).slice(0,120)}</small>` : ''}`;
+    return;
+  }
+
+  box.innerHTML = `<div class="scanner-found">
+    <div>
+      <span class="label">Detectado</span>
+      <strong>${escapeHtml(item.ref)}</strong>
+      <small>${escapeHtml(stickerDisplayName(item))} · qtd atual ${qty(item.id)}</small>
+    </div>
+    <div class="button-row">
+      <button class="btn primary" id="scannerAddOne" type="button">Adicionar +1</button>
+      <button class="btn" id="scannerAddPack" type="button">Adicionar ao pacotinho</button>
+    </div>
+  </div>`;
+
+  $('#scannerAddOne')?.addEventListener('click', () => addQty(item.id,1));
+  $('#scannerAddPack')?.addEventListener('click', () => addFromAdd(item.id));
+}
+
+async function scanStickerCodeBeta(){
+  if(scannerBusy) return;
+  const video = $('#scannerVideo');
+  const status = $('#scannerStatus');
+  if(!video || !video.srcObject){
+    status.textContent = 'Abra a câmera primeiro.';
+    return;
+  }
+
+  scannerBusy = true;
+  status.textContent = 'Lendo código... segure firme.';
+  try{
+    const Tesseract = await loadTesseract();
+    const canvas = scannerCanvasFromVideo(video);
+    const result = await Tesseract.recognize(canvas, 'eng', {
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-: '
+    });
+    const rawText = result?.data?.text || '';
+    const item = extractStickerCodeFromOcr(rawText);
+    renderScannerResult(item, rawText);
+    status.textContent = item ? `Detectei ${item.ref}. Confirme antes de lançar.` : 'Não achei com segurança. Tente novamente.';
+  }catch(e){
+    console.warn('scanner OCR failed', e);
+    status.textContent = 'Falha ao ler. Tente de novo ou digite o código manualmente.';
+  }finally{
+    scannerBusy = false;
+  }
+}
+
+function bindScannerBeta(){
+  $('#scannerStart')?.addEventListener('click', startScannerBeta);
+  $('#scannerStop')?.addEventListener('click', stopScannerBeta);
+  $('#scannerRead')?.addEventListener('click', scanStickerCodeBeta);
+}
+
 function renderAdd(){
   const ps = packStats();
   $('#view-add').innerHTML = `
@@ -1076,7 +1251,29 @@ function renderAdd(){
         <button class="btn primary" id="finishPack">Finalizar pacote</button>
       </div>
     </section>
+
+    <section class="card scanner-card">
+      <span class="label">Scanner Beta</span>
+      <h3>Ler código pelo verso</h3>
+      <p class="muted">Aponte a câmera para o código da figurinha. O app tenta interpretar e você confirma antes de lançar.</p>
+
+      <div class="scanner-preview">
+        <video id="scannerVideo" playsinline muted></video>
+        <div class="scanner-frame"><span>mire o código aqui</span></div>
+      </div>
+
+      <p id="scannerStatus" class="muted">Abra a câmera para começar. Funciona melhor com boa luz e código centralizado.</p>
+
+      <div class="button-row">
+        <button class="btn primary" id="scannerStart" type="button">Abrir câmera</button>
+        <button class="btn" id="scannerRead" type="button">Ler código</button>
+        <button class="btn" id="scannerStop" type="button">Fechar câmera</button>
+      </div>
+
+      <div id="scannerResult" class="scanner-result empty">Nenhuma leitura ainda.</div>
+    </section>
     ${renderAddInsights()}`;
+  bindScannerBeta();
   $('#addInput').addEventListener('input', renderAddResults);
   $('#addSearch').addEventListener('click', renderAddResults);
   $('#addInput').addEventListener('keydown', e => {
