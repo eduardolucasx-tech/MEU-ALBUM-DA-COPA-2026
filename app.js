@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.1-logo-avatar-navegacao';
-const VERSION_LABEL = 'v1.7.1';
-const VERSION_CHANGE = 'Navegação refinada: tocar no logo volta para o Início e tocar na foto do Google abre o Perfil.';
+const VERSION = '1.7.2-colinha-escolar';
+const VERSION_LABEL = 'v1.7.2';
+const VERSION_CHANGE = 'Correção dos atalhos do topo e nova Colinha Escolar: lista branca para impressão/CSV, pensada para levar ao colégio sem celular.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -404,16 +404,42 @@ function connectionLabel(){
 
 
 function bindHeaderShortcuts(){
-  const logoBtn = $('#brandHomeBtn');
-  if(logoBtn && logoBtn.dataset.bound !== '1'){
-    logoBtn.dataset.bound = '1';
-    logoBtn.addEventListener('click', () => switchView('home'));
-  }
+  const goHome = (ev) => {
+    ev?.preventDefault?.();
+    switchView('home');
+  };
+  const goProfile = (ev) => {
+    ev?.preventDefault?.();
+    switchView('profile');
+  };
+
+  const logoTargets = [
+    $('#brandHomeBtn'),
+    document.querySelector('.brand-logo'),
+    document.querySelector('.brand-text')
+  ].filter(Boolean);
+
+  logoTargets.forEach(el => {
+    if(el.dataset.boundHome === '1') return;
+    el.dataset.boundHome = '1';
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', goHome);
+    el.addEventListener('keydown', (ev) => {
+      if(ev.key === 'Enter' || ev.key === ' '){
+        goHome(ev);
+      }
+    });
+  });
 
   const avatarBtn = $('#headerIdentity');
-  if(avatarBtn && avatarBtn.dataset.bound !== '1'){
-    avatarBtn.dataset.bound = '1';
-    avatarBtn.addEventListener('click', () => switchView('profile'));
+  if(avatarBtn && avatarBtn.dataset.boundProfile !== '1'){
+    avatarBtn.dataset.boundProfile = '1';
+    avatarBtn.addEventListener('click', goProfile);
+    avatarBtn.addEventListener('keydown', (ev) => {
+      if(ev.key === 'Enter' || ev.key === ' '){
+        goProfile(ev);
+      }
+    });
   }
 }
 
@@ -841,6 +867,7 @@ function initSwipeNavigation(){
 }
 
 function render(){
+  bindHeaderShortcuts();
   updateHeaderIdentity();
   if(currentView === 'home') renderHome();
   if(currentView === 'album') renderAlbum();
@@ -1760,6 +1787,137 @@ function bindCompareTool(){
 
   setMode('manual');
 }
+
+function schoolListRows(mode='missing'){
+  const rows = [];
+  SECTION_LIST.forEach(sec => {
+    const items = sectionItems(sec).sort((a,b)=>a.number-b.number);
+    const filtered = items.filter(item => {
+      const q = qty(item.id);
+      if(mode === 'owned') return q > 0;
+      if(mode === 'duplicates') return q > 1;
+      if(mode === 'all') return true;
+      return q === 0;
+    });
+
+    if(!filtered.length) return;
+
+    rows.push({
+      type:'section',
+      code: codeOf(sec),
+      name: sec.name || sec.title || codeOf(sec),
+      owned: items.filter(i=>qty(i.id)>0).length,
+      total: items.length
+    });
+
+    filtered.forEach(item => {
+      const q = qty(item.id);
+      rows.push({
+        type:'item',
+        ref:item.ref,
+        number:Number(item.number),
+        name:stickerDisplayName(item),
+        status:q>1 ? `Tenho +${q-1}` : (q>0 ? 'Tenho' : 'Falta'),
+        qty:q
+      });
+    });
+  });
+  return rows;
+}
+function schoolListTitle(mode='missing'){
+  if(mode === 'owned') return 'Figurinhas que tenho';
+  if(mode === 'duplicates') return 'Repetidas para troca';
+  if(mode === 'all') return 'Lista completa do álbum';
+  return 'Figurinhas faltantes';
+}
+function renderSchoolPrintable(mode='missing'){
+  const rows = schoolListRows(mode);
+  const s = stats();
+  const generated = new Date().toLocaleDateString('pt-BR');
+  const itemRows = rows.map(row => {
+    if(row.type === 'section'){
+      return `<tr class="school-section-row"><td colspan="6"><strong>${escapeHtml(row.code)} · ${escapeHtml(row.name)}</strong><span>${row.owned}/${row.total}</span></td></tr>`;
+    }
+    return `<tr>
+      <td class="code">${escapeHtml(row.ref)}</td>
+      <td>${escapeHtml(row.name)}</td>
+      <td class="center">${escapeHtml(row.status)}</td>
+      <td class="check"></td>
+      <td class="write"></td>
+      <td class="write"></td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="school-print-sheet">
+    <header class="school-print-header">
+      <div class="school-brand">
+        <img src="./brand-logo.png" alt="Meu Álbum da Copa">
+        <div>
+          <strong>Meu Álbum da Copa</strong>
+          <span>Colinha Escolar</span>
+        </div>
+      </div>
+      <div class="school-meta">
+        <strong>${escapeHtml(schoolListTitle(mode))}</strong>
+        <span>${generated} · ${s.owned}/${s.total} coladas · ${s.duplicates} repetidas</span>
+      </div>
+    </header>
+    <table class="school-table">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Figurinha</th>
+          <th>Status</th>
+          <th>Marcar</th>
+          <th>De quem</th>
+          <th>Por qual</th>
+        </tr>
+      </thead>
+      <tbody>${itemRows || '<tr><td colspan="6" class="center">Nada para listar neste filtro.</td></tr>'}</tbody>
+    </table>
+    <footer class="school-footer">App independente de fãs · Lista para uso pessoal e escolar</footer>
+  </div>`;
+}
+function openSchoolList(){
+  const modal = $('#modal');
+  modal.classList.add('show');
+  modal.innerHTML = `<div class="modal-card school-modal-card">
+    <button class="modal-close" id="closeSchoolList" type="button">×</button>
+    <span class="label">Colinha Escolar</span>
+    <h3>Lista branca para imprimir</h3>
+    <p class="muted">Pensada para levar ao colégio sem precisar usar celular. Escolha o tipo de lista e imprima ou exporte CSV.</p>
+    <div class="school-controls">
+      <select id="schoolListMode">
+        <option value="missing">Faltantes</option>
+        <option value="duplicates">Repetidas</option>
+        <option value="owned">Tenho</option>
+        <option value="all">Lista completa</option>
+      </select>
+      <button class="btn primary" id="printSchoolList" type="button">Imprimir / PDF</button>
+      <button class="btn" id="copySchoolCsv" type="button">Copiar CSV</button>
+    </div>
+    <div id="schoolPrintPreview">${renderSchoolPrintable('missing')}</div>
+  </div>`;
+
+  const close = () => {
+    modal.classList.remove('show');
+    modal.innerHTML = '';
+  };
+  $('#closeSchoolList')?.addEventListener('click', close);
+  $('#schoolListMode')?.addEventListener('change', (ev) => {
+    $('#schoolPrintPreview').innerHTML = renderSchoolPrintable(ev.target.value);
+  });
+  $('#printSchoolList')?.addEventListener('click', () => window.print());
+  $('#copySchoolCsv')?.addEventListener('click', () => {
+    const mode = $('#schoolListMode')?.value || 'missing';
+    const rows = schoolListRows(mode).filter(r=>r.type === 'item');
+    const csv = ['Codigo;Figurinha;Status;Marcar;De quem;Por qual']
+      .concat(rows.map(r => `${r.ref};${String(r.name).replaceAll(';', ',')};${r.status};;;`))
+      .join('\n');
+    copyText(csv);
+  });
+}
+
 function renderTrades(){
   const statusOptions = ['Disponível','Em negociação','Reservada','Concluída'];
   const normalizeTradeStatus = (value) => {
@@ -1815,6 +1973,7 @@ function renderTrades(){
       <div class="button-row trade-actions refined-actions">
         <button class="btn primary" id="copyDup">Copiar repetidas</button>
         <button class="btn" id="copyMissing">Copiar faltantes</button>
+        <button class="btn" id="openSchoolFromTrades" type="button">Colinha escolar</button>
       </div>
     </section>
 
@@ -1852,6 +2011,7 @@ function renderTrades(){
     ev.preventDefault();
     await copyText(`🔁 Repetidas:\n${formatDuplicateTradeList()}`);
   });
+  $('#openSchoolFromTrades')?.addEventListener('click', openSchoolList);
   $('#copyMissing').addEventListener('click', async (ev)=>{
     ev.preventDefault();
     await copyText(`📌 Faltantes:\n${formatMissingTradeList()}`);
@@ -2277,6 +2437,7 @@ function renderProfile(){
           <div class="button-row tools-actions">
             <button class="btn primary" id="shareAppBtn" type="button">Compartilhar app</button>
             <button class="btn" id="exportJson">Exportar backup</button>
+            <button class="btn" id="schoolListBtn" type="button">Colinha escolar</button>
             <label class="btn import-json-btn"><input id="importJson" type="file" accept="application/json" hidden><span>Restaurar JSON</span></label>
             <button class="btn danger" id="resetAll">Zerar tudo</button>
           </div>
@@ -2309,6 +2470,7 @@ function renderProfile(){
   $('#syncNow').addEventListener('click', syncNow);
   $('#shareAppBtn')?.addEventListener('click', shareApp);
   $('#exportJson').addEventListener('click', exportJson);
+  $('#schoolListBtn')?.addEventListener('click', openSchoolList);
   $('#importJson').addEventListener('change', importJson);
   $('#resetAll').addEventListener('click', () => {
     if(confirm('Zerar toda a coleção deste álbum ativo?\n\nRecomendação: exporte um backup antes.\n\nDeseja continuar?')){

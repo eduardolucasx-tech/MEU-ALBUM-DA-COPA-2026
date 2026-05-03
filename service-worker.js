@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-7-1-logo-avatar-navegacao';
+const CACHE='meu-album-copa-v1-7-2-colinha-escolar';
 const APP_SHELL=[
   './',
   './index.html',
