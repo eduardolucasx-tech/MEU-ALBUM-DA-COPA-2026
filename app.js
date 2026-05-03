@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.6.5-perfil-final-enxuto';
-const VERSION_LABEL = 'v1.6.5';
-const VERSION_CHANGE = 'Perfil reorganizado em blocos mais claros: Painel, Estimativa, Família e Conta, Ferramentas e Ajuda & Legal, com menos redundância visual.';
+const VERSION = '1.6.6-polimento-final-swipe';
+const VERSION_LABEL = 'v1.6.6';
+const VERSION_CHANGE = 'Rodada final de polimento visual e UX: cards, botões, espaçamentos e navegação por arraste lateral entre abas, sem atrapalhar campos e rolagem vertical.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -650,6 +650,71 @@ function setView(view){
   $('#viewTitle').textContent = view === 'home' ? homeTitle() : (({album:'Álbum', quick:'Visual rápido', add:'Adicionar', trades:'Trocas', missing:'Faltantes', profile:'Perfil'})[view] || 'Meu Álbum');
   render();
 }
+
+const VIEW_ORDER = ['home','quick','add','trades','profile'];
+
+function canSwipeFromTarget(target){
+  if(!target) return false;
+  return !target.closest('input, textarea, select, button, a, label, .sticker, .quick-cell, .trade-item, .drawer-head, .modal, .info-modal, .bottom-nav, .nav-btn, [data-team], [data-expand], [data-info]');
+}
+
+function initSwipeNavigation(){
+  const root = document.querySelector('.screen-wrap') || document.querySelector('.app') || document.body;
+  if(!root || root.dataset.swipeReady === '1') return;
+  root.dataset.swipeReady = '1';
+
+  let startX = 0;
+  let startY = 0;
+  let startTime = 0;
+  let tracking = false;
+
+  root.addEventListener('touchstart', (ev) => {
+    if(ev.touches.length !== 1) return;
+    const touch = ev.touches[0];
+    if(!canSwipeFromTarget(ev.target)) return;
+    startX = touch.clientX;
+    startY = touch.clientY;
+    startTime = Date.now();
+    tracking = true;
+  }, {passive:true});
+
+  root.addEventListener('touchmove', (ev) => {
+    if(!tracking || ev.touches.length !== 1) return;
+    const touch = ev.touches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+
+    if(Math.abs(dy) > 42 && Math.abs(dy) > Math.abs(dx) * 1.2){
+      tracking = false;
+    }
+  }, {passive:true});
+
+  root.addEventListener('touchend', (ev) => {
+    if(!tracking) return;
+    tracking = false;
+
+    const touch = ev.changedTouches[0];
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    const elapsed = Date.now() - startTime;
+
+    if(Math.abs(dx) < 70) return;
+    if(Math.abs(dx) < Math.abs(dy) * 1.35) return;
+    if(elapsed > 700) return;
+
+    const index = VIEW_ORDER.indexOf(currentView);
+    if(index < 0) return;
+
+    const nextIndex = dx < 0 ? index + 1 : index - 1;
+    if(nextIndex < 0 || nextIndex >= VIEW_ORDER.length) return;
+
+    const nextView = VIEW_ORDER[nextIndex];
+    document.querySelector('.screen-wrap')?.classList.add(dx < 0 ? 'swipe-next' : 'swipe-prev');
+    setTimeout(() => document.querySelector('.screen-wrap')?.classList.remove('swipe-next','swipe-prev'), 220);
+    switchView(nextView);
+  }, {passive:true});
+}
+
 function render(){
   if(currentView === 'home') renderHome();
   if(currentView === 'album') renderAlbum();
@@ -2499,6 +2564,7 @@ function updateNavToggle(){
 $('#navToggle')?.addEventListener('click', ()=>{ appEl.classList.toggle('landscape-nav-expanded'); updateNavToggle(); });
 window.addEventListener('resize', ()=>{ if(!window.matchMedia('(orientation: landscape) and (max-height: 560px)').matches){ appEl.classList.remove('landscape-nav-expanded'); updateNavToggle(); } });
 updateNavToggle();
+initSwipeNavigation();
 bindConnectionEvents();
 updateConnectionBadge();
 $('#syncButton').addEventListener('click',syncNow);
