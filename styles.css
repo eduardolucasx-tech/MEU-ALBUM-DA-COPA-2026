@@ -3107,3 +3107,43 @@ button.brand-logo,
     padding:3.8px 5px;
   }
 }
+
+
+/* modal fallback */
+.modal{
+  position:fixed;
+  inset:0;
+  z-index:9999;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(0,0,0,.72);
+  backdrop-filter:blur(8px);
+}
+.modal.show{
+  display:flex;
+}
+.modal-card{
+  width:min(720px,96vw);
+  max-height:88vh;
+  overflow:auto;
+  background:var(--card, #17181c);
+  border:1px solid var(--line, rgba(255,255,255,.12));
+  border-radius:24px;
+  padding:18px;
+  box-shadow:0 24px 80px rgba(0,0,0,.45);
+  position:relative;
+}
+.modal-close{
+  position:absolute;
+  top:12px;
+  right:12px;
+  width:38px;
+  height:38px;
+  border-radius:999px;
+  border:1px solid var(--line, rgba(255,255,255,.12));
+  background:rgba(255,255,255,.06);
+  color:var(--text, #fff);
+  font-size:22px;
+}

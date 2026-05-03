@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.2-colinha-escolar';
-const VERSION_LABEL = 'v1.7.2';
-const VERSION_CHANGE = 'Correção dos atalhos do topo e nova Colinha Escolar: lista branca para impressão/CSV, pensada para levar ao colégio sem celular.';
+const VERSION = '1.7.3-fix-nav-colinha';
+const VERSION_LABEL = 'v1.7.3';
+const VERSION_CHANGE = 'Correção dos atalhos do topo e da Colinha Escolar: navegação usando o fluxo real do app e modal criado automaticamente quando necessário.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -403,20 +403,60 @@ function connectionLabel(){
 }
 
 
+
+function safeGoView(view){
+  try{
+    if(typeof switchView === 'function'){
+      switchView(view);
+      return;
+    }
+    if(typeof setView === 'function'){
+      setView(view);
+      return;
+    }
+    if(typeof navigate === 'function'){
+      navigate(view);
+      return;
+    }
+    if(typeof goToView === 'function'){
+      goToView(view);
+      return;
+    }
+    if(typeof render === 'function'){
+      currentView = view;
+      render();
+      return;
+    }
+  }catch(e){
+    console.warn('safeGoView failed', e);
+  }
+}
+function ensureAppModal(){
+  let modal = document.querySelector('#modal');
+  if(!modal){
+    modal = document.createElement('div');
+    modal.id = 'modal';
+    modal.className = 'modal';
+    document.body.appendChild(modal);
+  }
+  return modal;
+}
+
 function bindHeaderShortcuts(){
   const goHome = (ev) => {
     ev?.preventDefault?.();
-    switchView('home');
+    safeGoView('home');
   };
   const goProfile = (ev) => {
     ev?.preventDefault?.();
-    switchView('profile');
+    safeGoView('profile');
   };
 
   const logoTargets = [
     $('#brandHomeBtn'),
     document.querySelector('.brand-logo'),
-    document.querySelector('.brand-text')
+    document.querySelector('.brand-text'),
+    document.querySelector('.brand')
   ].filter(Boolean);
 
   logoTargets.forEach(el => {
@@ -1879,7 +1919,7 @@ function renderSchoolPrintable(mode='missing'){
   </div>`;
 }
 function openSchoolList(){
-  const modal = $('#modal');
+  const modal = ensureAppModal();
   modal.classList.add('show');
   modal.innerHTML = `<div class="modal-card school-modal-card">
     <button class="modal-close" id="closeSchoolList" type="button">×</button>
@@ -1900,8 +1940,8 @@ function openSchoolList(){
   </div>`;
 
   const close = () => {
-    modal.classList.remove('show');
-    modal.innerHTML = '';
+    modal?.classList?.remove('show');
+    if(modal) modal.innerHTML = '';
   };
   $('#closeSchoolList')?.addEventListener('click', close);
   $('#schoolListMode')?.addEventListener('change', (ev) => {
