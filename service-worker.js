@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-6-6-polimento-final-swipe';
+const CACHE='meu-album-copa-v1-7-0-identidade-continuidade';
 const APP_SHELL=[
   './',
   './index.html',

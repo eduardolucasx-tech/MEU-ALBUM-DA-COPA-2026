@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.6.6-polimento-final-swipe';
-const VERSION_LABEL = 'v1.6.6';
-const VERSION_CHANGE = 'Rodada final de polimento visual e UX: cards, botões, espaçamentos e navegação por arraste lateral entre abas, sem atrapalhar campos e rolagem vertical.';
+const VERSION = '1.7.0-identidade-continuidade';
+const VERSION_LABEL = 'v1.7.0';
+const VERSION_CHANGE = 'Atualização de experiência: foto do Google no app, status de salvamento mais claro, continuar de onde parei, onboarding inicial e pequenos refinamentos de fluxo.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -212,6 +212,106 @@ function openCopyModal(text){
 }
 
 
+
+function userDisplayName(){
+  const fromGoogle = cloud.user?.displayName || cloud.user?.email || '';
+  const localName = state?.userName || '';
+  return fromGoogle || localName || 'Colecionador';
+}
+function userFirstName(){
+  const name = userDisplayName();
+  const clean = String(name).split('@')[0].trim();
+  return clean.split(/\s+/)[0] || 'Colecionador';
+}
+function userPhotoMarkup(size='md'){
+  const src = cloud.user?.photoURL || '';
+  const name = userDisplayName();
+  const initial = (userFirstName()[0] || 'C').toUpperCase();
+  if(src){
+    return `<span class="user-avatar user-avatar-${size}"><img src="${escapeAttr(src)}" alt="${escapeAttr(name)}" referrerpolicy="no-referrer" onerror="this.parentElement.classList.add('avatar-fallback'); this.remove();"><b>${escapeHtml(initial)}</b></span>`;
+  }
+  return `<span class="user-avatar user-avatar-${size} avatar-fallback"><b>${escapeHtml(initial)}</b></span>`;
+}
+function saveStatusText(){
+  if(isOffline()) return 'Offline · salvo neste aparelho';
+  if(cloud.user) return 'Sincronizado com Google';
+  return 'Salvo localmente';
+}
+function saveStatusMarkup(){
+  const cls = isOffline() ? 'offline' : (cloud.user ? 'cloud' : 'local');
+  return `<span class="save-status ${cls}"><i></i>${escapeHtml(saveStatusText())}</span>`;
+}
+function lastUsedTeam(){
+  const code = localStorage.getItem('meu-album-copa-last-team') || '';
+  if(!code) return null;
+  return SECTION_LIST.find(t => codeOf(t) === code || t.code === code) || null;
+}
+function setLastUsedTeamFromItem(item){
+  if(!item) return;
+  const sec = SECTION_LIST.find(t => t.id === item.teamId || t.code === item.team || codeOf(t) === item.team);
+  if(sec) localStorage.setItem('meu-album-copa-last-team', codeOf(sec));
+}
+function rememberView(view){
+  if(view) localStorage.setItem('meu-album-copa-last-view', view);
+}
+function lastView(){
+  return localStorage.getItem('meu-album-copa-last-view') || 'quick';
+}
+function continueLabel(){
+  const team = lastUsedTeam();
+  if(team) return `Continuar em ${escapeHtml(codeOf(team))}`;
+  const view = lastView();
+  const labels = {home:'Início', quick:'Rápido', add:'Adicionar', trades:'Trocas', profile:'Perfil'};
+  return `Continuar em ${labels[view] || 'Rápido'}`;
+}
+function continueLastSession(){
+  const team = lastUsedTeam();
+  if(team){
+    localStorage.setItem('meu-album-copa-quick-group', codeOf(team));
+    switchView('quick');
+    return;
+  }
+  const view = lastView();
+  switchView(VIEW_ORDER.includes(view) && view !== 'home' ? view : 'quick');
+}
+function shouldShowOnboarding(){
+  return localStorage.getItem('meu-album-copa-onboarding-v170') !== 'done';
+}
+function closeOnboarding(){
+  localStorage.setItem('meu-album-copa-onboarding-v170', 'done');
+  const el = document.querySelector('.onboarding-card');
+  if(el) el.remove();
+}
+function renderOnboardingCard(){
+  if(!shouldShowOnboarding()) return '';
+  return `<section class="card onboarding-card">
+    <div class="onboarding-head">
+      ${userPhotoMarkup('sm')}
+      <div>
+        <span class="label">Primeiros passos</span>
+        <h3>Bem-vindo, ${escapeHtml(userFirstName())}</h3>
+      </div>
+    </div>
+    <div class="onboarding-steps">
+      <span><b>1</b>Marque no Rápido</span>
+      <span><b>2</b>Adicione por código/lote</span>
+      <span><b>3</b>Copie listas em Trocas</span>
+      <span><b>4</b>Ative Google para salvar</span>
+    </div>
+    <div class="button-row compact-row">
+      <button class="btn primary" id="startOnboardingBtn" type="button">Começar agora</button>
+      <button class="btn" id="hideOnboardingBtn" type="button">Não mostrar novamente</button>
+    </div>
+  </section>`;
+}
+function bindOnboarding(){
+  $('#startOnboardingBtn')?.addEventListener('click', () => {
+    closeOnboarding();
+    switchView('quick');
+  });
+  $('#hideOnboardingBtn')?.addEventListener('click', closeOnboarding);
+}
+
 function firstNameFromGoogle(){
   const raw = cloud.user?.displayName || '';
   const first = raw.trim().split(/\s+/)[0] || '';
@@ -301,6 +401,13 @@ function isOffline(){
 function connectionLabel(){
   return isOffline() ? 'Offline' : 'Online';
 }
+
+function updateHeaderIdentity(){
+  const el = $('#headerIdentity');
+  if(!el) return;
+  el.innerHTML = `${userPhotoMarkup('xs')}<span>${escapeHtml(userFirstName())}</span>`;
+}
+
 function updateConnectionBadge(){
   const badge = $('#connectionBadge');
   if(!badge) return;
@@ -311,6 +418,7 @@ function updateConnectionBadge(){
 function bindConnectionEvents(){
   window.addEventListener('online', () => {
     updateConnectionBadge();
+updateHeaderIdentity();
     safeToast('Online novamente. Sincronizando...');
     if(cloud.user) syncNow();
   });
@@ -461,7 +569,8 @@ function saveState(label){
   queueCloudSave();
 }
 function setQty(id, value, label, options={}){
-  const item = itemById(id); if(!item) return;
+  const item = itemById(id);
+  setLastUsedTeamFromItem(item); if(!item) return;
   const before = qty(id);
   const after = Math.max(0, Number(value)||0);
   if(before === after) return;
@@ -471,7 +580,8 @@ function setQty(id, value, label, options={}){
   render();
   toastAction(`${item.ref}: ${qty(id)} unidade(s)`, 'Desfazer', undoLastAction);
 }
-function addQty(id, delta){ const item = itemById(id); if(item) setQty(id, qty(id)+delta, `${item.ref} ${delta>0?'adicionada':'removida'}`); }
+function addQty(id, delta){ const item = itemById(id);
+  setLastUsedTeamFromItem(item); if(item) setQty(id, qty(id)+delta, `${item.ref} ${delta>0?'adicionada':'removida'}`); }
 function quickToggle(id){ const item = itemById(id); if(item) setQty(id, qty(id)>0 ? 0 : 1, `${item.ref} ${qty(id)>0?'marcada como falta':'marcada como tenho'}`); }
 
 function flashGesture(el, className){
@@ -716,6 +826,7 @@ function initSwipeNavigation(){
 }
 
 function render(){
+  updateHeaderIdentity();
   if(currentView === 'home') renderHome();
   if(currentView === 'album') renderAlbum();
   if(currentView === 'quick') renderQuickView();
@@ -752,6 +863,14 @@ function renderHome(){
   const showOnboarding = !onboardingSeen();
 
   $('#view-home').innerHTML = `
+    ${renderOnboardingCard()}
+    <section class="card continue-card">
+      <div class="continue-main">
+        ${userPhotoMarkup('md')}
+        <div><span class="label">Sua coleção</span><h3>${escapeHtml(userFirstName())}, bora continuar?</h3><p class="muted">${saveStatusMarkup()}</p></div>
+      </div>
+      <button class="btn primary" id="continueSessionBtn" type="button">${continueLabel()}</button>
+    </section>
     <section class="card hero compact-hero hero-level-card" style="--p:${Math.round(s.progress*100)}%">
       <div>
         <span class="label">Coleção oficial</span>
@@ -881,6 +1000,9 @@ function renderHome(){
   updateKpiActions();
   closeAllSectionsOnFirstHome();
   renderTeamList();
+
+  bindOnboarding();
+  $('#continueSessionBtn')?.addEventListener('click', continueLastSession);
 }
 
 function renderAlbum(){
@@ -1227,6 +1349,7 @@ function renderAdd(){
     <section class="card">
       <span class="label">Modo pacotinho</span>
       <h2>Adicionar figurinhas</h2>
+        <div class="add-flow-hint"><span>Código único</span><span>Lote</span><span>Pacotinho</span></div>
       <p class="muted">Digite o código do verso: <strong>BRA 10</strong>, <strong>HAI08</strong>, <strong>FWC 1</strong>, <strong>CC 1</strong> ou <strong>00</strong>.</p>
       <div class="filters">
         <input id="addInput" class="search" type="search" placeholder="Ex: BRA 10" autocomplete="off">
@@ -2113,8 +2236,7 @@ function renderProfile(){
       <div class="profile-grid profile-grid-refined profile-paired-grid">
         ${renderFamilyCard()}
         <section class="card profile-account-card">
-          <span class="label">Conta e sincronização</span>
-          <h3>${cloud.user ? 'Google conectado' : 'Modo local'}</h3>
+          <div class="account-headline">${userPhotoMarkup('md')}<div><span class="label">Conta e sincronização</span><h3>${cloud.user ? 'Google conectado' : 'Modo local'}</h3></div></div>
           <p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p>
           <p class="muted sync-mini">Modo atual: <strong>${activeAlbumLabel()}</strong> · Última alteração local: ${state.updatedAt ? new Date(state.updatedAt).toLocaleString('pt-BR') : 'sem registro'}</p>
           <div class="button-row">
@@ -2422,6 +2544,7 @@ function renderFamilyCard(){
     <span class="label">Álbum familiar</span>
     <h3>${isFamily ? 'Família conectada' : 'Compartilhe com a família'}</h3>
     <p class="muted">${isFamily ? 'Todos os membros editam o mesmo álbum em tempo real. Backup JSON continua sendo apenas restauração manual.' : 'Crie ou entre em um álbum familiar para duas ou mais contas Google marcarem juntas.'}</p>
+    <div class="family-identity-row">${userPhotoMarkup('sm')}<span>${escapeHtml(userDisplayName())}</span></div>
     ${isFamily ? `<div class="family-code"><span>Código</span><strong>${escapeHtml(code)}</strong></div>` : ''}
     ${isFamily ? `<div class="family-members">${memberList.map(m=>`<span>${escapeHtml((m.name || m.email || 'Membro').split(' ')[0])}</span>`).join('') || '<span>Você</span>'}</div>` : ''}
     <div class="button-row family-actions">
