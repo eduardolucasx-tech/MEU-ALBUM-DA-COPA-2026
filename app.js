@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.5.0-scanner-beta-perf';
-const VERSION_LABEL = 'v1.5.0';
-const VERSION_CHANGE = 'Scanner Beta adicionado na aba Adicionar, com leitura por câmera/OCR, confirmação manual antes de lançar e melhorias de estrutura para manter o app mais leve em uso real.';
+const VERSION = '1.5.1-scanner-limpar-leitura';
+const VERSION_LABEL = 'v1.5.1';
+const VERSION_CHANGE = 'Scanner Beta refinado: adicionada opção para limpar a leitura detectada sem lançar a figurinha, ideal para testes ou leituras que o usuário não deseja confirmar.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1147,12 +1147,22 @@ function scannerCanvasFromVideo(video){
   return canvas;
 }
 
+function clearScannerReading(){
+  scannerLastResult = null;
+  const box = $('#scannerResult');
+  if(box) box.innerHTML = '<div class="empty">Leitura limpa. Aponte novamente para outro código.</div>';
+  const status = $('#scannerStatus');
+  if(status) status.textContent = 'Leitura limpa. Você pode ler outro código ou fechar a câmera.';
+}
+
 function renderScannerResult(item, rawText=''){
   const box = $('#scannerResult');
   scannerLastResult = item;
   if(!item){
     box.innerHTML = `<div class="empty">Não encontrei um código válido. Tente aproximar, melhorar a luz ou digitar manualmente.</div>
-    ${rawText ? `<small class="muted">OCR leu: ${escapeHtml(normalizeScannerText(rawText)).slice(0,120)}</small>` : ''}`;
+    ${rawText ? `<small class="muted">OCR leu: ${escapeHtml(normalizeScannerText(rawText)).slice(0,120)}</small>` : ''}
+    <div class="button-row"><button class="btn ghost" id="scannerClearReading" type="button">Limpar leitura</button></div>`;
+    $('#scannerClearReading')?.addEventListener('click', clearScannerReading);
     return;
   }
 
@@ -1165,11 +1175,13 @@ function renderScannerResult(item, rawText=''){
     <div class="button-row">
       <button class="btn primary" id="scannerAddOne" type="button">Adicionar +1</button>
       <button class="btn" id="scannerAddPack" type="button">Adicionar ao pacotinho</button>
+      <button class="btn ghost" id="scannerClearReading" type="button">Limpar leitura</button>
     </div>
   </div>`;
 
   $('#scannerAddOne')?.addEventListener('click', () => addQty(item.id,1));
   $('#scannerAddPack')?.addEventListener('click', () => addFromAdd(item.id));
+  $('#scannerClearReading')?.addEventListener('click', clearScannerReading);
 }
 
 async function scanStickerCodeBeta(){

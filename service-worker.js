@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-5-0-scanner-beta-perf';
+const CACHE='meu-album-copa-v1-5-1-scanner-limpar-leitura';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',
