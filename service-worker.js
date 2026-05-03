@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-5-4-sem-scanner';
+const CACHE='meu-album-copa-v1-5-5-otimizacao-json';
 const FILES=['./','./index.html','./styles.css','./app.js','./data.js','./firebase-config.js','./manifest.webmanifest','./brand-logo.png',
   './brand-logo-header.png',
   './brand-logo-full.png',

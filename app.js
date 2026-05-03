@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.5.4-sem-scanner';
-const VERSION_LABEL = 'v1.5.4';
-const VERSION_CHANGE = 'Scanner Beta removido para manter o app mais leve e estável. A aba Adicionar volta a priorizar busca por código, entrada em lote e modo pacotinho.';
+const VERSION = '1.5.5-otimizacao-json';
+const VERSION_LABEL = 'v1.5.5';
+const VERSION_CHANGE = 'Revisão de otimização pós-remoção do scanner: limpeza de resíduos, ajustes de performance leve e texto/alinhamento do Importar JSON no Perfil.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -892,7 +892,7 @@ function renderQuickView(){
             <div class="filters quick-filters quick-filters-inside">
               <select id="quickGroupFilter"><option value="">Todos os grupos</option>${groups.map(g=>`<option value="${g}">Grupo ${g}</option>`).join('')}<option value="EXTRAS">Extras</option></select>
               <select id="quickStatusFilter"><option value="">Todas</option><option value="missing">Só faltantes</option><option value="duplicate">Só repetidas</option><option value="owned">Só tenho</option></select>
-              <input id="quickSearch" class="search" type="search" placeholder="Buscar seleção ou sigla: BRA, Brasil...">
+              <input id="quickSearch" class="search" type="search" placeholder="Buscar seleção ou sigla: BRA, Brasil..." autocomplete="off" autocapitalize="characters" spellcheck="false">
             </div>
           </div>
         </div>
@@ -1056,7 +1056,7 @@ function renderAdd(){
     <section class="card batch-card">
       <span class="label">Entrada em lote</span>
       <p class="muted">Cole uma lista com uma figurinha por linha. Ex.: BRA 10, MEX 03, FWC 01.</p>
-      <textarea id="batchInput" rows="5" placeholder="BRA 10&#10;BRA 11&#10;MEX 03&#10;FWC 01"></textarea>
+      <textarea id="batchInput" rows="5" maxlength="8000" placeholder="BRA 10&#10;BRA 11&#10;MEX 03&#10;FWC 01"></textarea>
       <div class="button-row">
         <button class="btn primary" id="addBatch">Adicionar lote</button>
         <button class="btn" id="clearBatch">Limpar campo</button>
@@ -1378,7 +1378,7 @@ function renderTrades(){
       <p class="muted">Toque na figurinha para abrir os detalhes e editar status, contato e observações.</p>
 
       <div class="trade-toolbar">
-        <input id="tradeSearch" class="search" type="search" placeholder="Buscar figurinha, seleção ou código">
+        <input id="tradeSearch" class="search" type="search" placeholder="Buscar figurinha, seleção ou código" autocomplete="off" autocapitalize="characters" spellcheck="false">
         <select id="tradeStatusFilter">
           <option value="">Todos os status</option>
           ${statusOptions.map(v=>`<option value="${v}">${v}</option>`).join('')}
@@ -1777,12 +1777,13 @@ function renderProfile(){
         <span class="label">Ferramentas</span>
         <h3>Dados e compartilhamento</h3>
         <p class="muted">Leve seu álbum, faça backup e chame outras pessoas para usar o app.</p>
-        <div class="button-row">
+        <div class="button-row tools-actions">
           <button class="btn primary" id="shareAppBtn" type="button">Compartilhar app</button>
           <button class="btn" id="exportJson">Exportar JSON</button>
-          <label class="btn"><input id="importJson" type="file" accept="application/json" hidden>Importar JSON</label>
+          <label class="btn import-json-btn"><input id="importJson" type="file" accept="application/json" hidden><span>Importar JSON</span></label>
           <button class="btn danger" id="resetAll">Zerar tudo</button>
         </div>
+        <p class="muted tools-note">Use <strong>Exportar JSON</strong> para backup. Use <strong>Importar JSON</strong> apenas para restaurar um arquivo salvo.</p>
       </div>
 
       ${renderSettingsHub()}
