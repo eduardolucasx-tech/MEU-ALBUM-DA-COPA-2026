@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.5.6-blindagem-uso-real';
-const VERSION_LABEL = 'v1.5.6';
-const VERSION_CHANGE = 'Blindagem para uso real: backup JSON restaurado e protegido, importação com confirmação, álbum familiar mais seguro e opção de copiar o álbum pessoal para a família.';
+const VERSION = '1.5.7-offline-estabilidade';
+const VERSION_LABEL = 'v1.5.7';
+const VERSION_CHANGE = 'Estabilidade reforçada: fallback de bandeiras, modo offline mais claro, compartilhamento/cópia blindados e tratamento mais seguro para falhas de rede/Firebase.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -266,11 +266,13 @@ function flagEmoji(code){ return ''; }
 function flagImg(code, label=''){
   if(!code) return '';
   const normalized = String(code).toUpperCase() === 'CC' ? 'coc' : String(code).toLowerCase();
+  const safeCode = escapeAttr(String(code).toUpperCase());
+  const safeLabel = escapeAttr(label || code);
   const src = `./flags/${normalized}.svg`;
-  return `<img class="flag-img" src="${src}" alt="${escapeAttr(label || code)}" loading="lazy" decoding="async">`;
+  return `<span class="flag-wrap" data-code="${safeCode}"><img class="flag-img" src="${src}" alt="${safeLabel}" loading="lazy" decoding="async" onerror="this.closest('.flag-wrap')?.classList.add('flag-failed'); this.remove();"></span>`;
 }
 function flagMark(code, label=''){
-  return flagImg(code, label) || escapeHtml(code || '');
+  return flagImg(code, label) || `<span class="flag-wrap flag-failed" data-code="${escapeAttr(code || '')}"></span>`;
 }
 function loadOpenSections(){
   try{
@@ -292,6 +294,32 @@ function ensureDefaultOpenSections(sections){
 }
 function onboardingSeen(){ return localStorage.getItem(ONBOARDING_KEY) === '1'; }
 function markOnboardingSeen(){ localStorage.setItem(ONBOARDING_KEY, '1'); }
+
+function isOffline(){
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+function connectionLabel(){
+  return isOffline() ? 'Offline' : 'Online';
+}
+function updateConnectionBadge(){
+  const badge = $('#connectionBadge');
+  if(!badge) return;
+  const offline = isOffline();
+  badge.textContent = offline ? 'Offline · salvo localmente' : 'Online';
+  badge.classList.toggle('offline', offline);
+}
+function bindConnectionEvents(){
+  window.addEventListener('online', () => {
+    updateConnectionBadge();
+    safeToast('Online novamente. Sincronizando...');
+    if(cloud.user) syncNow();
+  });
+  window.addEventListener('offline', () => {
+    updateConnectionBadge();
+    safeToast('Você está offline. Alterações ficam salvas neste aparelho.');
+  });
+}
+
 function syncLabel(){ return cloud.user ? 'Google conectado' : 'Modo local'; }
 function syncHint(){ return cloud.user ? `${activeAlbumLabel()} · sincronização em tempo real ativa` : 'Seus dados estão salvos neste aparelho'; }
 function googleReminderCard(){
@@ -1233,6 +1261,24 @@ function formatDuplicateTradeList(){
   return rows.join('\n').trim() || 'Sem repetidas no momento.';
 }
 
+
+function formatMissingTradeList(){
+  const rows = [];
+  SECTION_LIST.forEach(sec => {
+    const items = sectionItems(sec)
+      .filter(i => qty(i.id) === 0)
+      .sort((a,b)=>a.number-b.number);
+
+    if(items.length){
+      rows.push(`${codeOf(sec)}:`);
+      rows.push(items.map(i => `${Number(i.number)}`).join(', '));
+      rows.push('');
+    }
+  });
+
+  return rows.join('\n').trim() || 'Sem faltantes no momento.';
+}
+
 function parseRefsFromText(raw){
   const text = String(raw || '').toUpperCase();
   const found = [];
@@ -1489,7 +1535,7 @@ function renderTrades(){
   });
   $('#copyMissing').addEventListener('click', async (ev)=>{
     ev.preventDefault();
-    await copyText(`📌 Faltantes:\n${formatList(i=>qty(i.id)===0)}`);
+    await copyText(`📌 Faltantes:\n${formatMissingTradeList()}`);
   });
   bindCompareTool();
 
@@ -1651,27 +1697,17 @@ function appShareUrl(){
   return location.origin || 'https://meu-album-da-copa-2026.vercel.app';
 }
 async function shareApp(){
-  const payload = {
-    title:'Meu Álbum da Copa 2026',
-    text:'Bora controlar as figurinhas da Copa comigo?',
-    url:appShareUrl()
-  };
+  const url = location.origin + location.pathname;
+  const text = 'Meu Álbum da Copa 2026 — controle suas figurinhas, repetidas e faltantes.';
   try{
     if(navigator.share){
-      await navigator.share(payload);
-      toast('App compartilhado!');
+      await navigator.share({title:'Meu Álbum da Copa 2026', text, url});
       return;
     }
-    await navigator.clipboard.writeText(payload.url);
-    toast('Link do app copiado!');
   }catch(e){
-    try{
-      await navigator.clipboard.writeText(payload.url);
-      toast('Link do app copiado!');
-    }catch(err){
-      toast('Não consegui compartilhar agora.');
-    }
+    console.warn('share failed', e);
   }
+  await copyText(`${text}\n${url}`);
 }
 function renderShareCard(){
   return `<section class="card share-card">
@@ -2120,12 +2156,10 @@ async function shareFamilyInvite(){
       await navigator.share({title:'Álbum Familiar da Copa', text});
       return;
     }
-    await navigator.clipboard.writeText(text);
-    toast('Convite copiado!');
   }catch(e){
-    try{ await navigator.clipboard.writeText(text); }catch(err){}
-    toast('Convite copiado!');
+    console.warn('family share failed', e);
   }
+  await copyText(text);
 }
 async function leaveFamilyAlbum(){
   if(!cloud.user || !familyAlbumId) return;
@@ -2210,6 +2244,7 @@ function startRealtimeSync(){
     }
   }, err => {
     console.warn('realtime sync failed', err);
+    if(!isOffline()) safeToast('Sincronização instável. Dados locais preservados.');
   });
 }
 function personalCloudDoc(){ return cloud.db.collection(CLOUD_COLLECTION).doc(cloud.user.uid); }
@@ -2240,9 +2275,10 @@ async function signOutCloud(){
   toast('Conta desconectada.');
   render();
 }
-function queueCloudSave(){ if(!cloud.ready || !cloud.user) return; clearTimeout(syncTimer); syncTimer=setTimeout(()=>saveCloud(),700); }
+function queueCloudSave(){ if(!cloud.ready || !cloud.user || isOffline()) return; clearTimeout(syncTimer); syncTimer=setTimeout(()=>saveCloud(),900); }
 async function saveCloud(){
   if(!cloud.ready || !cloud.user) return;
+  if(isOffline()) return safeToast('Offline: salvo localmente.');
   try{
     const payload = {state, updatedAt:firebase.firestore.FieldValue.serverTimestamp(), version:VERSION};
     if(activeAlbumMode === 'family'){
@@ -2255,6 +2291,7 @@ async function saveCloud(){
 }
 async function loadCloud(silent=false){
   if(!cloud.ready || !cloud.user) return;
+  if(isOffline()){ if(!silent) safeToast('Offline: usando dados locais.'); return; }
   try{
     const snap = await cloudDoc().get();
     if(snap.exists && snap.data().state){
@@ -2277,7 +2314,7 @@ async function loadCloud(silent=false){
     if(!silent) safeToast('Falha na sincronização.');
   }
 }
-async function syncNow(){ if(!cloud.user) return safeToast('Entre com Google no Perfil.'); await loadCloud(); await saveCloud(); safeToast('Sincronizado.'); }
+async function syncNow(){ if(!cloud.user) return safeToast('Entre com Google no Perfil.'); if(isOffline()) return safeToast('Offline: sincronizo quando a conexão voltar.'); await loadCloud(); await saveCloud(); safeToast('Sincronizado.'); updateConnectionBadge(); }
 
 $$('.nav-btn').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
 const appEl = $('#app');
@@ -2292,6 +2329,8 @@ function updateNavToggle(){
 $('#navToggle')?.addEventListener('click', ()=>{ appEl.classList.toggle('landscape-nav-expanded'); updateNavToggle(); });
 window.addEventListener('resize', ()=>{ if(!window.matchMedia('(orientation: landscape) and (max-height: 560px)').matches){ appEl.classList.remove('landscape-nav-expanded'); updateNavToggle(); } });
 updateNavToggle();
+bindConnectionEvents();
+updateConnectionBadge();
 $('#syncButton').addEventListener('click',syncNow);
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
 initCloud();
