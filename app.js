@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.9-ultra-atualizada';
-const VERSION_LABEL = 'v1.7.9';
-const VERSION_CHANGE = 'Colinha Ultra corrigida: a matriz seca agora já vem preenchida com Tenho, Repetidas e Faltantes do álbum atual.';
+const VERSION = '1.7.10-ultra-duas-paginas';
+const VERSION_LABEL = 'v1.7.10';
+const VERSION_CHANGE = 'Colinha Ultra ajustada: a matriz seca agora sai em 2 páginas fixas, evitando uma última página quase vazia só para CC.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1971,7 +1971,8 @@ function renderSchoolOnePagePrintable(){
 function renderSchoolUltraPrintable(){
   const s = stats();
   const generated = new Date().toLocaleDateString('pt-BR');
-  const rows = SECTION_LIST.map(section => {
+  const pages = [SECTION_LIST.slice(0, 25), SECTION_LIST.slice(25)];
+  const renderRows = (sections) => sections.map(section => {
     const items = sectionItems(section).sort((a,b)=>a.number-b.number);
     const itemMapLocal = new Map(items.map(item => [Number(item.number), item]));
     const cells = Array.from({length:20}, (_, i) => {
@@ -1990,36 +1991,41 @@ function renderSchoolUltraPrintable(){
       ${cells}
     </tr>`;
   }).join('');
-  return `<div class="school-print-sheet school-grid-sheet school-ultra-sheet">
-    <header class="school-grid-header ultra-head">
-      <div class="school-grid-brand">
-        <img src="./brand-logo.png" alt="Meu Álbum da Copa">
-        <div>
-          <strong>Meu Álbum da Copa</strong>
-          <span>Colinha Escolar · Ultra</span>
+
+  const renderPage = (sections, pageIndex) => `
+    <section class="school-print-sheet school-grid-sheet school-ultra-sheet ultra-page ${pageIndex < pages.length - 1 ? 'page-break' : ''}">
+      <header class="school-grid-header ultra-head">
+        <div class="school-grid-brand">
+          <img src="./brand-logo.png" alt="Meu Álbum da Copa">
+          <div>
+            <strong>Meu Álbum da Copa</strong>
+            <span>Colinha Escolar · Ultra · Página ${pageIndex + 1}/${pages.length}</span>
+          </div>
         </div>
-      </div>
-      <div class="school-grid-meta">
-        <strong>Matriz seca</strong>
-        <span>${generated} · ${s.owned}/${s.total}</span>
-      </div>
-    </header>
-    <div class="school-grid-legend school-grid-legend-ultra">
-      <span><b class="legend-box missing">□</b> Falta</span>
-      <span><b class="legend-box owned">✓</b> Tenho</span>
-      <span><b class="legend-box duplicate">+2</b> Repetidas</span>
-    </div>
-    <table class="school-grid-table ultra-table">
-      <thead>
-        <tr>
-          <th class="corner ultra-corner">Sigla</th>
-          ${schoolGridColumnHead()}
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <footer class="school-grid-footer">Folha branca · ultra escolar · só código e quadradinhos</footer>
-  </div>`;
+        <div class="school-grid-meta">
+          <strong>Matriz seca</strong>
+          <span>${generated} · ${s.owned}/${s.total}</span>
+        </div>
+      </header>
+      ${pageIndex === 0 ? `
+      <div class="school-grid-legend school-grid-legend-ultra">
+        <span><b class="legend-box missing">□</b> Falta</span>
+        <span><b class="legend-box owned">✓</b> Tenho</span>
+        <span><b class="legend-box duplicate">+2</b> Repetidas</span>
+      </div>` : ''}
+      <table class="school-grid-table ultra-table">
+        <thead>
+          <tr>
+            <th class="corner ultra-corner">Sigla</th>
+            ${schoolGridColumnHead()}
+          </tr>
+        </thead>
+        <tbody>${renderRows(sections)}</tbody>
+      </table>
+      <footer class="school-grid-footer">Folha branca · ultra escolar · só código e quadradinhos</footer>
+    </section>`;
+
+  return `<div class="school-print-stack ultra-stack">${pages.map((sections, i)=>renderPage(sections, i)).join('')}</div>`;
 }
 function renderSchoolDetailedPrintable(mode='school'){
   const rows = schoolListRows(mode);
@@ -2127,9 +2133,9 @@ function schoolPrintDocument(mode='school', layout='grid'){
     .school-grid-note{margin-left:auto;color:#666}
     .school-grid-table{width:100%;border-collapse:collapse;table-layout:fixed}
     .school-grid-table th,.school-grid-table td{border:1px solid #d5d5d5;text-align:center;padding:0}
-    .school-grid-table thead th{background:#f5f5f5;height:15px;font-size:6.3px}
+    .school-grid-table thead th{background:#f5f5f5;height:14px;font-size:6.1px}
     .school-grid-table .corner{width:78px}
-    .school-grid-rowhead{padding:2px 3px !important;text-align:left !important;background:#fafafa;width:78px}
+    .school-grid-rowhead{padding:1px 3px !important;text-align:left !important;background:#fafafa;width:78px}
     .school-grid-rowhead .code{font-size:8px;line-height:1;font-weight:900;color:#111}
     .school-grid-rowhead .name{margin-top:1px;font-size:5.7px;line-height:1.05;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .school-grid-rowhead .sum{margin-top:1px;font-size:5.3px;color:#888}

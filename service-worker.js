@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-7-9-ultra-atualizada';
+const CACHE='meu-album-copa-v1-7-10-ultra-duas-paginas';
 const APP_SHELL=[
   './',
   './index.html',
