@@ -2339,3 +2339,19 @@ textarea{
   font-size:1.25rem;
   margin:2px 0;
 }
+
+
+/* v1.5.2 - scanner automático */
+.scanner-card .button-row{
+  align-items:stretch;
+}
+.scanner-card .button-row .btn{
+  min-height:42px;
+}
+.scanner-preview.active .scanner-frame{
+  animation:scannerPulseV152 1.6s ease-in-out infinite;
+}
+@keyframes scannerPulseV152{
+  0%,100%{border-color:rgba(214,175,82,.78); box-shadow:0 0 0 999px rgba(0,0,0,.38), 0 0 18px rgba(214,175,82,.18);}
+  50%{border-color:rgba(255,224,138,.98); box-shadow:0 0 0 999px rgba(0,0,0,.34), 0 0 32px rgba(214,175,82,.35);}
+}

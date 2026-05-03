@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.5.1-scanner-limpar-leitura';
-const VERSION_LABEL = 'v1.5.1';
-const VERSION_CHANGE = 'Scanner Beta refinado: adicionada opção para limpar a leitura detectada sem lançar a figurinha, ideal para testes ou leituras que o usuário não deseja confirmar.';
+const VERSION = '1.5.2-scanner-auto-otimizado';
+const VERSION_LABEL = 'v1.5.2';
+const VERSION_CHANGE = 'Scanner Beta otimizado: câmera e leitura automática ao abrir a aba Adicionar, OCR com múltiplos tratamentos de imagem e controle para evitar leituras repetidas em sequência.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1036,6 +1036,10 @@ function packStats(){
 let scannerStream = null;
 let scannerBusy = false;
 let scannerLastResult = null;
+let scannerAutoTimer = null;
+let scannerAutoEnabled = true;
+let scannerLastDetectedId = '';
+let scannerLastDetectedAt = 0;
 
 function normalizeScannerText(raw){
   return String(raw || '')
@@ -1095,14 +1099,22 @@ async function startScannerBeta(){
 
   try{
     stopScannerBeta();
+    scannerAutoEnabled = true;
     scannerStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: {ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
+      video: {
+        facingMode: {ideal:'environment'},
+        width:{ideal:1920},
+        height:{ideal:1080},
+        focusMode:{ideal:'continuous'}
+      },
       audio: false
     });
     video.srcObject = scannerStream;
     await video.play();
     $('.scanner-preview')?.classList.add('active');
-    status.textContent = 'Aponte a câmera para o código do verso e toque em Ler código.';
+    status.textContent = 'Câmera liberada. Leitura automática iniciada.';
+    loadTesseract().catch(e=>console.warn('preload OCR failed', e));
+    startScannerAutoLoop();
   }catch(e){
     console.warn('scanner camera failed', e);
     status.textContent = 'Não consegui acessar a câmera. Verifique a permissão do navegador.';
@@ -1110,49 +1122,74 @@ async function startScannerBeta(){
 }
 
 function stopScannerBeta(){
+  stopScannerAutoLoop();
   if(scannerStream){
     scannerStream.getTracks().forEach(t=>t.stop());
     scannerStream = null;
   }
+  scannerBusy = false;
+  scannerLastResult = null;
   const video = $('#scannerVideo');
   if(video) video.srcObject = null;
   $('.scanner-preview')?.classList.remove('active');
 }
 
-function scannerCanvasFromVideo(video){
+function buildScannerCanvas(video, mode='bw', cropScale=1){
   const canvas = document.createElement('canvas');
   const vw = video.videoWidth || 1280;
   const vh = video.videoHeight || 720;
 
-  const cropW = Math.floor(vw * 0.62);
-  const cropH = Math.floor(vh * 0.22);
+  const baseW = Math.floor(vw * 0.72 * cropScale);
+  const baseH = Math.floor(vh * 0.26 * cropScale);
+  const cropW = Math.min(vw, baseW);
+  const cropH = Math.min(vh, baseH);
   const cropX = Math.floor((vw - cropW) / 2);
   const cropY = Math.floor((vh - cropH) / 2);
 
   canvas.width = cropW * 2;
   canvas.height = cropH * 2;
   const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  ctx.imageSmoothingEnabled = true;
   ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
 
   const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = img.data;
+
   for(let i=0;i<data.length;i+=4){
     const gray = (data[i]*0.299 + data[i+1]*0.587 + data[i+2]*0.114);
-    const contrast = Math.max(0, Math.min(255, (gray - 128) * 1.8 + 128));
-    const bw = contrast > 145 ? 255 : 0;
-    data[i] = data[i+1] = data[i+2] = bw;
-  }
-  ctx.putImageData(img,0,0);
+    let v = gray;
 
+    if(mode === 'contrast'){
+      v = Math.max(0, Math.min(255, (gray - 128) * 2.2 + 128));
+      data[i] = data[i+1] = data[i+2] = v;
+    }else if(mode === 'bw'){
+      v = Math.max(0, Math.min(255, (gray - 128) * 2.1 + 128));
+      const bw = v > 138 ? 255 : 0;
+      data[i] = data[i+1] = data[i+2] = bw;
+    }else if(mode === 'invert'){
+      v = Math.max(0, Math.min(255, (gray - 128) * 2.1 + 128));
+      const bw = v > 138 ? 0 : 255;
+      data[i] = data[i+1] = data[i+2] = bw;
+    }else{
+      data[i] = data[i+1] = data[i+2] = gray;
+    }
+  }
+
+  ctx.putImageData(img,0,0);
   return canvas;
 }
 
-function clearScannerReading(){
-  scannerLastResult = null;
-  const box = $('#scannerResult');
-  if(box) box.innerHTML = '<div class="empty">Leitura limpa. Aponte novamente para outro código.</div>';
-  const status = $('#scannerStatus');
-  if(status) status.textContent = 'Leitura limpa. Você pode ler outro código ou fechar a câmera.';
+function scannerCanvasFromVideo(video){
+  return buildScannerCanvas(video, 'bw', 1);
+}
+
+function buildScannerCanvasVariants(video){
+  return [
+    buildScannerCanvas(video, 'bw', 1),
+    buildScannerCanvas(video, 'contrast', 1),
+    buildScannerCanvas(video, 'bw', 1.18),
+    buildScannerCanvas(video, 'invert', 1)
+  ];
 }
 
 function renderScannerResult(item, rawText=''){
@@ -1184,8 +1221,9 @@ function renderScannerResult(item, rawText=''){
   $('#scannerClearReading')?.addEventListener('click', clearScannerReading);
 }
 
-async function scanStickerCodeBeta(){
+async function scanStickerCodeBeta(options={}){
   if(scannerBusy) return;
+  const auto = !!options.auto;
   const video = $('#scannerVideo');
   const status = $('#scannerStatus');
   if(!video || !video.srcObject){
@@ -1194,20 +1232,45 @@ async function scanStickerCodeBeta(){
   }
 
   scannerBusy = true;
-  status.textContent = 'Lendo código... segure firme.';
+  if(!auto) status.textContent = 'Lendo código... segure firme.';
+  else status.textContent = 'Lendo automaticamente... mantenha o código dentro da moldura.';
+
   try{
     const Tesseract = await loadTesseract();
-    const canvas = scannerCanvasFromVideo(video);
-    const result = await Tesseract.recognize(canvas, 'eng', {
-      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-: '
-    });
-    const rawText = result?.data?.text || '';
-    const item = extractStickerCodeFromOcr(rawText);
-    renderScannerResult(item, rawText);
-    status.textContent = item ? `Detectei ${item.ref}. Confirme antes de lançar.` : 'Não achei com segurança. Tente novamente.';
+    const variants = buildScannerCanvasVariants(video);
+    let bestText = '';
+    let bestItem = null;
+
+    for(const canvas of variants){
+      const result = await Tesseract.recognize(canvas, 'eng', {
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-: ',
+        tessedit_pageseg_mode: '7'
+      });
+      const rawText = result?.data?.text || '';
+      bestText += ' ' + rawText;
+      const item = extractStickerCodeFromOcr(rawText);
+      if(item){
+        bestItem = item;
+        break;
+      }
+    }
+
+    if(bestItem){
+      const now = Date.now();
+      if(auto && scannerLastDetectedId === bestItem.id && now - scannerLastDetectedAt < 3500){
+        status.textContent = `Já detectei ${bestItem.ref}. Confirme ou limpe a leitura.`;
+        return;
+      }
+      scannerLastDetectedId = bestItem.id;
+      scannerLastDetectedAt = now;
+    }
+
+    renderScannerResult(bestItem, bestText);
+    status.textContent = bestItem ? `Detectei ${bestItem.ref}. Confirme antes de lançar.` : 'Não achei com segurança. Ajuste distância/luz e tente novamente.';
   }catch(e){
     console.warn('scanner OCR failed', e);
-    status.textContent = 'Falha ao ler. Tente de novo ou digite o código manualmente.';
+    if(!auto) status.textContent = 'Falha ao ler. Tente de novo ou digite o código manualmente.';
+    else status.textContent = 'Leitura automática tentando novamente...';
   }finally{
     scannerBusy = false;
   }
@@ -1216,7 +1279,15 @@ async function scanStickerCodeBeta(){
 function bindScannerBeta(){
   $('#scannerStart')?.addEventListener('click', startScannerBeta);
   $('#scannerStop')?.addEventListener('click', stopScannerBeta);
-  $('#scannerRead')?.addEventListener('click', scanStickerCodeBeta);
+  $('#scannerRead')?.addEventListener('click', () => scanStickerCodeBeta({auto:false}));
+  $('#scannerAutoToggle')?.addEventListener('click', toggleScannerAuto);
+
+  setTimeout(() => {
+    const card = $('.scanner-card');
+    if(card && currentView === 'add' && !scannerStream){
+      startScannerBeta();
+    }
+  }, 450);
 }
 
 function renderAdd(){
@@ -1267,18 +1338,19 @@ function renderAdd(){
     <section class="card scanner-card">
       <span class="label">Scanner Beta</span>
       <h3>Ler código pelo verso</h3>
-      <p class="muted">Aponte a câmera para o código da figurinha. O app tenta interpretar e você confirma antes de lançar.</p>
+      <p class="muted">A câmera abre automaticamente. Mire o código dentro da moldura; o app tenta ler sozinho e você confirma antes de lançar.</p>
 
       <div class="scanner-preview">
         <video id="scannerVideo" playsinline muted></video>
         <div class="scanner-frame"><span>mire o código aqui</span></div>
       </div>
 
-      <p id="scannerStatus" class="muted">Abra a câmera para começar. Funciona melhor com boa luz e código centralizado.</p>
+      <p id="scannerStatus" class="muted">Ao liberar a câmera, a leitura automática começa. Funciona melhor com boa luz, código centralizado e celular firme.</p>
 
       <div class="button-row">
         <button class="btn primary" id="scannerStart" type="button">Abrir câmera</button>
-        <button class="btn" id="scannerRead" type="button">Ler código</button>
+        <button class="btn" id="scannerRead" type="button">Ler agora</button>
+        <button class="btn" id="scannerAutoToggle" type="button">Pausar leitura auto</button>
         <button class="btn" id="scannerStop" type="button">Fechar câmera</button>
       </div>
 

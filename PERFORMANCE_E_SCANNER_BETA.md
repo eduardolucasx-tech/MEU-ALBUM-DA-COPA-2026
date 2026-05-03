@@ -1,16 +1,23 @@
-# Notas de performance — v1.5.0
+# Notas de performance — v1.5.2
 
-Para manter o app leve mesmo com mais dados:
+Scanner:
+- A câmera abre automaticamente ao entrar em Adicionar.
+- A leitura automática começa assim que a permissão da câmera é liberada.
+- O OCR continua sob demanda: a biblioteca Tesseract.js só é carregada quando o scanner é usado.
+- Cada leitura usa recorte central, ampliação e múltiplos tratamentos de imagem para aumentar a chance de acerto.
+- A confirmação manual continua obrigatória para evitar marcações erradas.
 
-1. O scanner OCR só carrega a biblioteca Tesseract.js quando o usuário usa o scanner.
-2. O álbum deve seguir com carregamento leve: seleções fechadas não devem renderizar todas as figurinhas.
-3. Evitar salvar imagens/base64 no Firestore; manter apenas números, status e metadados curtos.
-4. Exportações e comparações devem ser calculadas sob demanda, não salvas como listas duplicadas.
-5. Em futuras expansões, dividir dados pesados em arquivos separados e carregar apenas quando necessário.
-6. Para imagens/bandeiras, usar assets otimizados e cacheados pelo service worker.
+Como ler melhor:
+1. Use a câmera traseira.
+2. Coloque o código dentro da moldura.
+3. Mantenha o celular firme por 1 a 2 segundos.
+4. Use boa luz, sem reflexo forte.
+5. Evite aproximar demais a ponto de desfocar.
+6. Se a leitura falhar, toque em Ler agora ou limpe a leitura e tente novamente.
 
-Scanner Beta:
-- é experimental;
-- exige boa luz;
-- pode errar códigos pequenos;
-- sempre pede confirmação antes de lançar.
+Estratégia de leveza:
+1. Não salvar imagens no Firebase.
+2. Não carregar OCR na abertura do app.
+3. Renderizar telas pesadas sob demanda.
+4. Gerar exportações/listas apenas quando o usuário pedir.
+5. Manter assets otimizados e cacheados.
