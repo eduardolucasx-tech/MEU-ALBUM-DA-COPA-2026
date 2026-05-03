@@ -2315,3 +2315,42 @@ textarea{
     width:100%;
   }
 }
+
+
+/* v1.5.6 - blindagem uso real */
+.family-actions,
+.tools-actions{
+  align-items:stretch;
+}
+.family-actions .btn,
+.tools-actions .btn,
+.tools-actions label.btn{
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+}
+.sync-mini{
+  margin-top:8px;
+  padding:9px 10px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:rgba(255,255,255,.03);
+  font-size:.82rem;
+}
+.sync-mini strong{
+  color:var(--gold);
+}
+@media(max-width:430px){
+  .family-actions,
+  .tools-actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+  }
+  .family-actions .btn,
+  .tools-actions .btn,
+  .tools-actions label.btn{
+    width:100%;
+  }
+}

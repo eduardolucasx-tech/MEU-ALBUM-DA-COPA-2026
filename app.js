@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.5.5-otimizacao-json';
-const VERSION_LABEL = 'v1.5.5';
-const VERSION_CHANGE = 'Revisão de otimização pós-remoção do scanner: limpeza de resíduos, ajustes de performance leve e texto/alinhamento do Importar JSON no Perfil.';
+const VERSION = '1.5.6-blindagem-uso-real';
+const VERSION_LABEL = 'v1.5.6';
+const VERSION_CHANGE = 'Blindagem para uso real: backup JSON restaurado e protegido, importação com confirmação, álbum familiar mais seguro e opção de copiar o álbum pessoal para a família.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -320,6 +320,101 @@ function normalizeState(raw){
   Object.entries(raw.quantities || {}).forEach(([id,value]) => { if(quantities[id] !== undefined) quantities[id] = Math.max(0, Number(value)||0); });
   return {...base, ...raw, quantities, tradeStatus: raw.tradeStatus || {}, contacts: raw.contacts || {}, notes: raw.notes || {}, history: Array.isArray(raw.history) ? raw.history.slice(0,80) : [], version: VERSION};
 }
+
+function currentStateSummary(value=state){
+  const normalized = normalizeState(value);
+  const owned = Object.values(normalized.quantities || {}).filter(v => Number(v)>0).length;
+  const physical = Object.values(normalized.quantities || {}).reduce((sum,v)=>sum+Math.max(0, Number(v)||0),0);
+  const duplicates = Object.values(normalized.quantities || {}).reduce((sum,v)=>sum+Math.max(0, (Number(v)||0)-1),0);
+  return {owned, physical, duplicates, updatedAt: normalized.updatedAt || ''};
+}
+function makeBackupPayload(reason='manual'){
+  return {
+    app:'Meu Álbum da Copa 2026',
+    kind:'backup-json',
+    reason,
+    exportedAt:new Date().toISOString(),
+    version:VERSION,
+    activeAlbumMode,
+    familyAlbumId: familyAlbumId || '',
+    summary: currentStateSummary(state),
+    state: normalizeState(state)
+  };
+}
+function downloadJson(filename, payload){
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function backupFilename(prefix='meu-album-copa-backup'){
+  const stamp = new Date().toISOString().slice(0,19).replace(/[-:T]/g,'');
+  const mode = activeAlbumMode === 'family' ? 'familiar' : 'pessoal';
+  return `${prefix}-${mode}-${stamp}.json`;
+}
+function exportJson(){
+  downloadJson(backupFilename(), makeBackupPayload('manual-export'));
+  safeToast('Backup JSON exportado.');
+}
+function extractImportedState(raw){
+  if(raw?.state && raw?.kind === 'backup-json') return raw.state;
+  if(raw?.state && raw?.app) return raw.state;
+  if(raw?.quantities) return raw;
+  return null;
+}
+async function importJson(ev){
+  const input = ev?.target;
+  const file = input?.files?.[0];
+  if(!file) return;
+
+  try{
+    const text = await file.text();
+    const raw = JSON.parse(text);
+    const importedRaw = extractImportedState(raw);
+    if(!importedRaw) throw new Error('Formato inválido');
+
+    const imported = normalizeState(importedRaw);
+    const before = currentStateSummary(state);
+    const after = currentStateSummary(imported);
+
+    const msg = [
+      'Importar este JSON vai substituir a coleção atual neste aparelho.',
+      '',
+      `Atual: ${before.owned} coladas, ${before.duplicates} repetidas.`,
+      `Arquivo: ${after.owned} coladas, ${after.duplicates} repetidas.`,
+      '',
+      'Recomendação: exporte um backup antes de importar.',
+      '',
+      'Deseja continuar?'
+    ].join('\n');
+
+    if(!confirm(msg)){
+      if(input) input.value = '';
+      return;
+    }
+
+    if(confirm('Quer exportar um backup de segurança antes de substituir?')){
+      downloadJson(backupFilename('backup-antes-de-importar'), makeBackupPayload('before-import'));
+    }
+
+    state = imported;
+    state.updatedAt = new Date().toISOString();
+    saveState('JSON importado');
+    if(input) input.value = '';
+    render();
+    safeToast('JSON importado com segurança.');
+  }catch(e){
+    console.warn('import json failed', e);
+    if(input) input.value = '';
+    alert('Não consegui importar este JSON. Verifique se o arquivo é um backup válido do app.');
+  }
+}
+
 function loadState(){
   try{
     const current = localStorage.getItem(STORAGE_KEY);
@@ -1766,6 +1861,7 @@ function renderProfile(){
         <span class="label">Conta e sincronização</span>
         <h3>${cloud.user ? 'Google conectado' : 'Modo local'}</h3>
         <p class="muted">${cloud.user ? escapeHtml(email) : 'Entre com Google para salvar na nuvem.'}</p>
+        <p class="muted sync-mini">Modo atual: <strong>${activeAlbumLabel()}</strong> · Última alteração local: ${state.updatedAt ? new Date(state.updatedAt).toLocaleString('pt-BR') : 'sem registro'}</p>
         <div class="button-row">
           <button class="btn primary" id="loginBtn">${cloud.user ? 'Trocar conta' : 'Entrar com Google'}</button>
           <button class="btn" id="logoutBtn">Sair</button>
@@ -1774,16 +1870,16 @@ function renderProfile(){
       </div>
 
       <div class="card">
-        <span class="label">Ferramentas</span>
-        <h3>Dados e compartilhamento</h3>
-        <p class="muted">Leve seu álbum, faça backup e chame outras pessoas para usar o app.</p>
+        <span class="label">Backup e ferramentas</span>
+        <h3>Proteção dos seus dados</h3>
+        <p class="muted">Faça backup antes de mudanças grandes. JSON é para segurança/restauração; álbum familiar é sincronização compartilhada.</p>
         <div class="button-row tools-actions">
           <button class="btn primary" id="shareAppBtn" type="button">Compartilhar app</button>
-          <button class="btn" id="exportJson">Exportar JSON</button>
-          <label class="btn import-json-btn"><input id="importJson" type="file" accept="application/json" hidden><span>Importar JSON</span></label>
+          <button class="btn" id="exportJson">Exportar backup</button>
+          <label class="btn import-json-btn"><input id="importJson" type="file" accept="application/json" hidden><span>Restaurar JSON</span></label>
           <button class="btn danger" id="resetAll">Zerar tudo</button>
         </div>
-        <p class="muted tools-note">Use <strong>Exportar JSON</strong> para backup. Use <strong>Importar JSON</strong> apenas para restaurar um arquivo salvo.</p>
+        <p class="muted tools-note">Use <strong>Exportar backup</strong> antes de importar, sair de álbum ou trocar de modo. <strong>Restaurar JSON</strong> substitui o álbum atual.</p>
       </div>
 
       ${renderSettingsHub()}
@@ -1807,7 +1903,7 @@ function renderProfile(){
   $('#exportJson').addEventListener('click', exportJson);
   $('#importJson').addEventListener('change', importJson);
   $('#resetAll').addEventListener('click', () => {
-    if(confirm('Zerar toda a coleção? Essa ação apaga suas marcações neste álbum ativo.')){
+    if(confirm('Zerar toda a coleção deste álbum ativo?\n\nRecomendação: exporte um backup antes.\n\nDeseja continuar?')){
       state = emptyState();
       saveState('Coleção zerada');
       render();
@@ -1919,8 +2015,46 @@ function familyInviteText(){
   const code = familyAlbumMeta?.inviteCode || familyAlbumId || '';
   return `Entre no meu Álbum Familiar da Copa 2026 usando o código: ${code}`;
 }
+
+async function copyPersonalToFamilyAlbum(){
+  if(!cloud.user) return safeToast('Entre com Google antes.');
+  if(!familyAlbumId) return safeToast('Crie ou entre em um álbum familiar primeiro.');
+
+  const currentMode = activeAlbumMode;
+  const currentFamilyId = familyAlbumId;
+
+  if(!confirm('Isso vai copiar seu álbum pessoal atual para o álbum familiar e substituir o progresso familiar atual. Deseja continuar?')) return;
+
+  try{
+    const personalSnap = await personalCloudDoc().get();
+    const personalState = personalSnap.exists && personalSnap.data().state ? normalizeState(personalSnap.data().state) : normalizeState(state);
+
+    await familyCloudDoc(currentFamilyId).set({
+      state: personalState,
+      version: VERSION,
+      members: {[cloud.user.uid]: memberInfo()},
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, {merge:true});
+
+    if(currentMode === 'family'){
+      state = personalState;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    await loadCloud(true);
+    startRealtimeSync();
+    render();
+    safeToast('Álbum pessoal copiado para a família.');
+  }catch(e){
+    console.warn('copy personal to family failed', e);
+    safeToast('Não consegui copiar para o familiar.');
+  }
+}
+
 async function createFamilyAlbum(){
   if(!cloud.user) return toast('Entre com Google antes de criar um álbum familiar.');
+  const summary = currentStateSummary(state);
+  const useCurrent = summary.owned > 0 ? confirm(`Você tem ${summary.owned} figurinhas coladas e ${summary.duplicates} repetidas neste aparelho.\n\nOK = Começar familiar com meu álbum atual.\nCancelar = Começar familiar zerado.`) : false;
   const code = generateFamilyCode();
   const doc = familyCloudDoc(code);
   const payload = {
@@ -1931,7 +2065,7 @@ async function createFamilyAlbum(){
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     version: VERSION,
     members: {[cloud.user.uid]: memberInfo()},
-    state: normalizeState(state)
+    state: useCurrent ? normalizeState(state) : emptyState()
   };
   await doc.set(payload);
   familyAlbumMeta = {inviteCode: code, ownerUid: cloud.user.uid, members: {[cloud.user.uid]: memberInfo()}};
@@ -1945,6 +2079,9 @@ async function joinFamilyAlbum(code){
   if(!cloud.user) return toast('Entre com Google antes de entrar em um álbum familiar.');
   const cleaned = String(code || '').trim().toUpperCase();
   if(!cleaned) return toast('Digite o código do álbum familiar.');
+  if(currentStateSummary(state).owned > 0 && confirm('Antes de entrar, quer exportar um backup do álbum atual deste aparelho?')){
+    downloadJson(backupFilename('backup-antes-de-entrar-familia'), makeBackupPayload('before-join-family'));
+  }
   const doc = familyCloudDoc(cleaned);
   const snap = await doc.get();
   if(!snap.exists) return toast('Código não encontrado.');
@@ -2015,16 +2152,18 @@ function renderFamilyCard(){
   return `<section class="card family-card">
     <span class="label">Álbum familiar</span>
     <h3>${isFamily ? 'Família conectada' : 'Compartilhe com a família'}</h3>
-    <p class="muted">${isFamily ? 'Todos os membros editam o mesmo álbum em tempo real.' : 'Crie ou entre em um álbum familiar para duas ou mais contas Google marcarem juntas.'}</p>
+    <p class="muted">${isFamily ? 'Todos os membros editam o mesmo álbum em tempo real. Backup JSON continua sendo apenas restauração manual.' : 'Crie ou entre em um álbum familiar para duas ou mais contas Google marcarem juntas.'}</p>
     ${isFamily ? `<div class="family-code"><span>Código</span><strong>${escapeHtml(code)}</strong></div>` : ''}
     ${isFamily ? `<div class="family-members">${memberList.map(m=>`<span>${escapeHtml((m.name || m.email || 'Membro').split(' ')[0])}</span>`).join('') || '<span>Você</span>'}</div>` : ''}
-    <div class="button-row">
+    <div class="button-row family-actions">
       <button class="btn ${isFamily ? '' : 'primary'}" id="createFamilyAlbum">${isFamily ? 'Novo familiar' : 'Criar álbum familiar'}</button>
       <button class="btn" id="joinFamilyAlbum">Entrar com código</button>
       ${isFamily ? '<button class="btn primary" id="shareFamilyInvite">Compartilhar convite</button>' : ''}
       ${familyAlbumId ? `<button class="btn" id="switchPersonal">${isFamily ? 'Usar pessoal' : 'Usar familiar'}</button>` : ''}
+      ${familyAlbumId ? '<button class="btn" id="copyPersonalToFamily">Copiar pessoal → familiar</button>' : ''}
       ${isFamily ? '<button class="btn danger" id="leaveFamilyAlbum">Sair do familiar</button>' : ''}
     </div>
+    ${familyAlbumId ? '<p class="muted tools-note">Use “Copiar pessoal → familiar” só quando quiser substituir o álbum familiar pelo seu álbum pessoal.</p>' : ''}
   </section>`;
 }
 function bindFamilyCard(){
@@ -2038,6 +2177,7 @@ function bindFamilyCard(){
     if(activeAlbumMode === 'family') switchToPersonalAlbum();
     else switchToFamilyAlbum();
   });
+  $('#copyPersonalToFamily')?.addEventListener('click', copyPersonalToFamilyAlbum);
   $('#leaveFamilyAlbum')?.addEventListener('click', leaveFamilyAlbum);
 }
 
