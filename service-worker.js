@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-7-0-identidade-continuidade';
+const CACHE='meu-album-copa-v1-7-1-logo-avatar-navegacao';
 const APP_SHELL=[
   './',
   './index.html',

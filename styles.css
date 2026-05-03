@@ -2881,3 +2881,36 @@ select:focus-visible{
     align-items:flex-start;
   }
 }
+
+
+/* v1.7.1 - logo/avatar como atalhos */
+.brand-home-btn{
+  appearance:none;
+  border:0;
+  background:transparent;
+  padding:0;
+  margin:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  border-radius:18px;
+  -webkit-tap-highlight-color:transparent;
+}
+.brand-home-btn:active,
+.header-identity:active{
+  transform:translateY(1px) scale(.99);
+}
+.brand-home-btn:focus-visible,
+.header-identity:focus-visible{
+  outline:2px solid rgba(255,224,138,.55);
+  outline-offset:3px;
+}
+.header-identity{
+  cursor:pointer;
+  appearance:none;
+}
+button.header-identity{
+  border:1px solid rgba(255,255,255,.10);
+  font-family:inherit;
+}

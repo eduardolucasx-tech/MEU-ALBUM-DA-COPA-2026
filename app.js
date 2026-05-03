@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.0-identidade-continuidade';
-const VERSION_LABEL = 'v1.7.0';
-const VERSION_CHANGE = 'Atualização de experiência: foto do Google no app, status de salvamento mais claro, continuar de onde parei, onboarding inicial e pequenos refinamentos de fluxo.';
+const VERSION = '1.7.1-logo-avatar-navegacao';
+const VERSION_LABEL = 'v1.7.1';
+const VERSION_CHANGE = 'Navegação refinada: tocar no logo volta para o Início e tocar na foto do Google abre o Perfil.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -400,6 +400,21 @@ function isOffline(){
 }
 function connectionLabel(){
   return isOffline() ? 'Offline' : 'Online';
+}
+
+
+function bindHeaderShortcuts(){
+  const logoBtn = $('#brandHomeBtn');
+  if(logoBtn && logoBtn.dataset.bound !== '1'){
+    logoBtn.dataset.bound = '1';
+    logoBtn.addEventListener('click', () => switchView('home'));
+  }
+
+  const avatarBtn = $('#headerIdentity');
+  if(avatarBtn && avatarBtn.dataset.bound !== '1'){
+    avatarBtn.dataset.bound = '1';
+    avatarBtn.addEventListener('click', () => switchView('profile'));
+  }
 }
 
 function updateHeaderIdentity(){
@@ -2688,6 +2703,7 @@ $('#navToggle')?.addEventListener('click', ()=>{ appEl.classList.toggle('landsca
 window.addEventListener('resize', ()=>{ if(!window.matchMedia('(orientation: landscape) and (max-height: 560px)').matches){ appEl.classList.remove('landscape-nav-expanded'); updateNavToggle(); } });
 updateNavToggle();
 initSwipeNavigation();
+bindHeaderShortcuts();
 bindConnectionEvents();
 updateConnectionBadge();
 $('#syncButton').addEventListener('click',syncNow);
