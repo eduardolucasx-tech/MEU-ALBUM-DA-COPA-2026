@@ -3426,3 +3426,131 @@ button.brand-logo,
     padding:0;
   }
 }
+
+
+/* v1.7.6 - exportação completa da Colinha Escolar */
+@media print{
+  @page{
+    size:A4 portrait;
+    margin:8mm;
+  }
+
+  html,
+  body{
+    width:auto !important;
+    height:auto !important;
+    overflow:visible !important;
+    background:#fff !important;
+  }
+
+  body.printing-school-list *{
+    visibility:hidden !important;
+  }
+
+  body.printing-school-list #schoolPrintPreview,
+  body.printing-school-list #schoolPrintPreview *{
+    visibility:visible !important;
+  }
+
+  body.printing-school-list #schoolPrintPreview{
+    position:absolute !important;
+    inset:auto !important;
+    left:0 !important;
+    top:0 !important;
+    width:100% !important;
+    height:auto !important;
+    min-height:0 !important;
+    max-height:none !important;
+    overflow:visible !important;
+    background:#fff !important;
+    border:0 !important;
+    border-radius:0 !important;
+    padding:0 !important;
+    margin:0 !important;
+    display:block !important;
+  }
+
+  body.printing-school-list .modal,
+  body.printing-school-list .modal.show,
+  body.printing-school-list .school-modal-card{
+    position:static !important;
+    display:block !important;
+    width:auto !important;
+    height:auto !important;
+    max-width:none !important;
+    max-height:none !important;
+    overflow:visible !important;
+    background:#fff !important;
+    border:0 !important;
+    box-shadow:none !important;
+    padding:0 !important;
+    margin:0 !important;
+  }
+
+  body.printing-school-list .school-print-sheet{
+    width:100% !important;
+    min-width:0 !important;
+    max-width:none !important;
+    height:auto !important;
+    overflow:visible !important;
+    background:#fff !important;
+    color:#111 !important;
+    box-shadow:none !important;
+    border-radius:0 !important;
+    margin:0 !important;
+    page-break-inside:auto !important;
+    break-inside:auto !important;
+  }
+
+  body.printing-school-list .school-print-header,
+  body.printing-school-list .school-legend-bar,
+  body.printing-school-list .school-footer{
+    break-inside:avoid !important;
+    page-break-inside:avoid !important;
+  }
+
+  body.printing-school-list .school-table{
+    width:100% !important;
+    page-break-inside:auto !important;
+    break-inside:auto !important;
+  }
+
+  body.printing-school-list .school-table thead{
+    display:table-header-group !important;
+  }
+
+  body.printing-school-list .school-table tfoot{
+    display:table-footer-group !important;
+  }
+
+  body.printing-school-list .school-table tr{
+    break-inside:avoid !important;
+    page-break-inside:avoid !important;
+  }
+
+  body.printing-school-list .school-section-row{
+    break-after:avoid !important;
+    page-break-after:avoid !important;
+  }
+
+  body.printing-school-list .school-print-sheet.school-compact .school-table{
+    font-size:8.2px !important;
+  }
+
+  body.printing-school-list .school-print-sheet.school-compact .school-table th{
+    font-size:7px !important;
+    padding:2.2px 2.8px !important;
+  }
+
+  body.printing-school-list .school-print-sheet.school-compact .school-table td{
+    padding:1.9px 2.8px !important;
+  }
+
+  body.printing-school-list .school-print-sheet.school-detailed .school-table{
+    font-size:10.5px !important;
+  }
+
+  body.printing-school-list .school-print-sheet.school-detailed .school-table td{
+    padding:4.5px 5px !important;
+  }
+}

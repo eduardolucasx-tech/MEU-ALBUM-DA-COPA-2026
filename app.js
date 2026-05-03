@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.5-colinha-compacta-detalhada';
-const VERSION_LABEL = 'v1.7.5';
-const VERSION_CHANGE = 'Colinha Escolar com dois modelos: Compacta para caber mais por página e Detalhada para consulta mais bonita e espaçada.';
+const VERSION = '1.7.6-colinha-export-completo';
+const VERSION_LABEL = 'v1.7.6';
+const VERSION_CHANGE = 'Correção da Colinha Escolar: impressão/PDF agora exporta o documento completo, sem cortar apenas a parte visível do preview.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -2007,7 +2007,11 @@ function openSchoolList(){
     btn?.setAttribute('aria-pressed', schoolLayout === 'detailed' ? 'true' : 'false');
     refreshSchoolPreview();
   });
-  $('#printSchoolList')?.addEventListener('click', () => window.print());
+  $('#printSchoolList')?.addEventListener('click', () => {
+    document.body.classList.add('printing-school-list');
+    setTimeout(() => window.print(), 80);
+  });
+  window.addEventListener('afterprint', () => document.body.classList.remove('printing-school-list'), {once:true});
   $('#copySchoolCsv')?.addEventListener('click', () => {
     const mode = $('#schoolListMode')?.value || 'school';
     const rows = schoolListRows(mode).filter(r=>r.type === 'item');

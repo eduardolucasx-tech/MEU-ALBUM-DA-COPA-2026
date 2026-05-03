@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-7-5-colinha-compacta-detalhada';
+const CACHE='meu-album-copa-v1-7-6-colinha-export-completo';
 const APP_SHELL=[
   './',
   './index.html',
