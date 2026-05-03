@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.3-fix-nav-colinha';
-const VERSION_LABEL = 'v1.7.3';
-const VERSION_CHANGE = 'Correção dos atalhos do topo e da Colinha Escolar: navegação usando o fluxo real do app e modal criado automaticamente quando necessário.';
+const VERSION = '1.7.5-colinha-compacta-detalhada';
+const VERSION_LABEL = 'v1.7.5';
+const VERSION_CHANGE = 'Colinha Escolar com dois modelos: Compacta para caber mais por página e Detalhada para consulta mais bonita e espaçada.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1828,7 +1828,7 @@ function bindCompareTool(){
   setMode('manual');
 }
 
-function schoolListRows(mode='missing'){
+function schoolListRows(mode='school'){
   const rows = [];
   SECTION_LIST.forEach(sec => {
     const items = sectionItems(sec).sort((a,b)=>a.number-b.number);
@@ -1836,8 +1836,8 @@ function schoolListRows(mode='missing'){
       const q = qty(item.id);
       if(mode === 'owned') return q > 0;
       if(mode === 'duplicates') return q > 1;
-      if(mode === 'all') return true;
-      return q === 0;
+      if(mode === 'missing') return q === 0;
+      return true;
     });
 
     if(!filtered.length) return;
@@ -1847,6 +1847,8 @@ function schoolListRows(mode='missing'){
       code: codeOf(sec),
       name: sec.name || sec.title || codeOf(sec),
       owned: items.filter(i=>qty(i.id)>0).length,
+      missing: items.filter(i=>qty(i.id)===0).length,
+      duplicates: items.reduce((sum, i) => sum + extras(i), 0),
       total: items.length
     });
 
@@ -1857,65 +1859,105 @@ function schoolListRows(mode='missing'){
         ref:item.ref,
         number:Number(item.number),
         name:stickerDisplayName(item),
-        status:q>1 ? `Tenho +${q-1}` : (q>0 ? 'Tenho' : 'Falta'),
-        qty:q
+        have:q > 0,
+        missing:q === 0,
+        repeats:extras(item),
+        qty:q,
+        status:q>1 ? `Tenho +${q-1}` : (q>0 ? 'Tenho' : 'Falta')
       });
     });
   });
   return rows;
 }
-function schoolListTitle(mode='missing'){
+function schoolListTitle(mode='school'){
   if(mode === 'owned') return 'Figurinhas que tenho';
   if(mode === 'duplicates') return 'Repetidas para troca';
-  if(mode === 'all') return 'Lista completa do álbum';
-  return 'Figurinhas faltantes';
+  if(mode === 'missing') return 'Figurinhas faltantes';
+  return 'Colinha escolar completa';
 }
-function renderSchoolPrintable(mode='missing'){
+function schoolLegend(mode='school'){
+  if(mode === 'owned') return 'Mostra apenas as figurinhas já coladas no álbum.';
+  if(mode === 'duplicates') return 'Mostra só as repetidas, já com a quantidade extra para trocar.';
+  if(mode === 'missing') return 'Mostra só o que ainda falta encontrar.';
+  return 'Lista completa por seleção, já marcando o que você tem, as repetidas e o que ainda falta.';
+}
+function schoolCheck(checked){
+  return `<span class="school-box ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</span>`;
+}
+function renderSchoolPrintable(mode='school', layout='compact'){
   const rows = schoolListRows(mode);
   const s = stats();
   const generated = new Date().toLocaleDateString('pt-BR');
+  const fullMode = mode === 'school';
   const itemRows = rows.map(row => {
     if(row.type === 'section'){
-      return `<tr class="school-section-row"><td colspan="6"><strong>${escapeHtml(row.code)} · ${escapeHtml(row.name)}</strong><span>${row.owned}/${row.total}</span></td></tr>`;
+      return `<tr class="school-section-row"><td colspan="${fullMode ? 7 : 6}"><strong>${escapeHtml(row.code)} · ${escapeHtml(row.name)}</strong><span>${row.owned}/${row.total} · ${row.duplicates} reps · ${row.missing} faltam</span></td></tr>`;
+    }
+    if(fullMode){
+      return `<tr>
+        <td class="code">${escapeHtml(row.ref)}</td>
+        <td>${escapeHtml(row.name)}</td>
+        <td class="center">${schoolCheck(row.have)}</td>
+        <td class="center reps">${row.repeats > 0 ? row.repeats : ''}</td>
+        <td class="center">${schoolCheck(row.missing)}</td>
+        <td class="write"></td>
+        <td class="write"></td>
+      </tr>`;
     }
     return `<tr>
       <td class="code">${escapeHtml(row.ref)}</td>
       <td>${escapeHtml(row.name)}</td>
       <td class="center">${escapeHtml(row.status)}</td>
-      <td class="check"></td>
+      <td class="center reps">${row.repeats > 0 ? row.repeats : ''}</td>
       <td class="write"></td>
       <td class="write"></td>
     </tr>`;
   }).join('');
 
-  return `<div class="school-print-sheet">
+  const head = fullMode
+    ? `<tr>
+        <th>Código</th>
+        <th>Figurinha</th>
+        <th>Tenho</th>
+        <th>Reps</th>
+        <th>Falta</th>
+        <th>De quem</th>
+        <th>Trocar por</th>
+      </tr>`
+    : `<tr>
+        <th>Código</th>
+        <th>Figurinha</th>
+        <th>Status</th>
+        <th>Reps</th>
+        <th>De quem</th>
+        <th>Trocar por</th>
+      </tr>`;
+
+  const layoutClass = layout === 'detailed' ? 'school-detailed' : 'school-compact';
+
+  return `<div class="school-print-sheet ${layoutClass} ${fullMode ? 'full' : 'partial'}">
     <header class="school-print-header">
       <div class="school-brand">
         <img src="./brand-logo.png" alt="Meu Álbum da Copa">
         <div>
           <strong>Meu Álbum da Copa</strong>
-          <span>Colinha Escolar</span>
+          <span>Colinha Escolar · ${layout === 'detailed' ? 'Detalhada' : 'Compacta'}</span>
         </div>
       </div>
       <div class="school-meta">
         <strong>${escapeHtml(schoolListTitle(mode))}</strong>
-        <span>${generated} · ${s.owned}/${s.total} coladas · ${s.duplicates} repetidas</span>
+        <span>${generated} · ${s.owned}/${s.total} coladas · ${s.duplicates} repetidas · ${s.total - s.owned} faltantes</span>
       </div>
     </header>
-    <table class="school-table">
-      <thead>
-        <tr>
-          <th>Código</th>
-          <th>Figurinha</th>
-          <th>Status</th>
-          <th>Marcar</th>
-          <th>De quem</th>
-          <th>Por qual</th>
-        </tr>
-      </thead>
-      <tbody>${itemRows || '<tr><td colspan="6" class="center">Nada para listar neste filtro.</td></tr>'}</tbody>
+    <div class="school-legend-bar">
+      <span>${escapeHtml(schoolLegend(mode))}</span>
+      ${fullMode ? `<div class="school-mini-legend"><span>${schoolCheck(true)} Tenho</span><span><b class="mini-reps">2</b> Repetidas</span><span>${schoolCheck(true)} Falta</span></div>` : ''}
+    </div>
+    <table class="school-table ${fullMode ? 'school-table-full' : 'school-table-partial'}">
+      <thead>${head}</thead>
+      <tbody>${itemRows || `<tr><td colspan="${fullMode ? 7 : 6}" class="center">Nada para listar neste filtro.</td></tr>`}</tbody>
     </table>
-    <footer class="school-footer">App independente de fãs · Lista para uso pessoal e escolar</footer>
+    <footer class="school-footer">${layout === 'detailed' ? 'Modelo detalhado' : 'Modelo compacto'} · Folha branca para impressão · App independente de fãs · uso pessoal</footer>
   </div>`;
 }
 function openSchoolList(){
@@ -1924,35 +1966,58 @@ function openSchoolList(){
   modal.innerHTML = `<div class="modal-card school-modal-card">
     <button class="modal-close" id="closeSchoolList" type="button">×</button>
     <span class="label">Colinha Escolar</span>
-    <h3>Lista branca para imprimir</h3>
-    <p class="muted">Pensada para levar ao colégio sem precisar usar celular. Escolha o tipo de lista e imprima ou exporte CSV.</p>
-    <div class="school-controls">
+    <h3>Planilha branca para imprimir</h3>
+    <p class="muted">Leva em conta o que você já tem, as repetidas e o que ainda falta. Ideal para imprimir e levar ao colégio.</p>
+    <div class="school-controls school-controls-v175">
       <select id="schoolListMode">
-        <option value="missing">Faltantes</option>
-        <option value="duplicates">Repetidas</option>
-        <option value="owned">Tenho</option>
-        <option value="all">Lista completa</option>
+        <option value="school">Colinha completa</option>
+        <option value="missing">Só faltantes</option>
+        <option value="duplicates">Só repetidas</option>
+        <option value="owned">Só tenho</option>
       </select>
+
+      <button id="schoolLayoutSwitch" class="school-layout-switch" type="button" aria-pressed="false" aria-label="Alternar modelo da colinha">
+        <span class="layout-option compact-label">Compacta</span>
+        <span class="switch-track"><i></i></span>
+        <span class="layout-option detailed-label">Detalhada</span>
+      </button>
+
       <button class="btn primary" id="printSchoolList" type="button">Imprimir / PDF</button>
       <button class="btn" id="copySchoolCsv" type="button">Copiar CSV</button>
     </div>
-    <div id="schoolPrintPreview">${renderSchoolPrintable('missing')}</div>
+    <div id="schoolPrintPreview">${renderSchoolPrintable('school', 'compact')}</div>
   </div>`;
 
   const close = () => {
     modal?.classList?.remove('show');
     if(modal) modal.innerHTML = '';
   };
+  let schoolLayout = 'compact';
+  const refreshSchoolPreview = () => {
+    const mode = $('#schoolListMode')?.value || 'school';
+    $('#schoolPrintPreview').innerHTML = renderSchoolPrintable(mode, schoolLayout);
+  };
+
   $('#closeSchoolList')?.addEventListener('click', close);
-  $('#schoolListMode')?.addEventListener('change', (ev) => {
-    $('#schoolPrintPreview').innerHTML = renderSchoolPrintable(ev.target.value);
+  $('#schoolListMode')?.addEventListener('change', refreshSchoolPreview);
+  $('#schoolLayoutSwitch')?.addEventListener('click', () => {
+    schoolLayout = schoolLayout === 'compact' ? 'detailed' : 'compact';
+    const btn = $('#schoolLayoutSwitch');
+    btn?.classList?.toggle('is-detailed', schoolLayout === 'detailed');
+    btn?.setAttribute('aria-pressed', schoolLayout === 'detailed' ? 'true' : 'false');
+    refreshSchoolPreview();
   });
   $('#printSchoolList')?.addEventListener('click', () => window.print());
   $('#copySchoolCsv')?.addEventListener('click', () => {
-    const mode = $('#schoolListMode')?.value || 'missing';
+    const mode = $('#schoolListMode')?.value || 'school';
     const rows = schoolListRows(mode).filter(r=>r.type === 'item');
-    const csv = ['Codigo;Figurinha;Status;Marcar;De quem;Por qual']
-      .concat(rows.map(r => `${r.ref};${String(r.name).replaceAll(';', ',')};${r.status};;;`))
+    const fullMode = mode === 'school';
+    const csv = [fullMode
+      ? 'Codigo;Figurinha;Tenho;Repetidas;Falta;De quem;Trocar por'
+      : 'Codigo;Figurinha;Status;Repetidas;De quem;Trocar por']
+      .concat(rows.map(r => fullMode
+        ? `${r.ref};${String(r.name).replaceAll(';', ',')};${r.have ? 'SIM' : ''};${r.repeats || ''};${r.missing ? 'SIM' : ''};;`
+        : `${r.ref};${String(r.name).replaceAll(';', ',')};${r.status};${r.repeats || ''};;`))
       .join('\n');
     copyText(csv);
   });
