@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.5.7-offline-estabilidade';
-const VERSION_LABEL = 'v1.5.7';
-const VERSION_CHANGE = 'Estabilidade reforçada: fallback de bandeiras, modo offline mais claro, compartilhamento/cópia blindados e tratamento mais seguro para falhas de rede/Firebase.';
+const VERSION = '1.5.8-trocas-leve';
+const VERSION_LABEL = 'v1.5.8';
+const VERSION_CHANGE = 'Aba Trocas otimizada: a lista grande de repetidas agora carrega sob demanda em gaveta, com paginação e menos peso ao abrir a tela.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1475,7 +1475,8 @@ function renderTrades(){
     if(raw === 'Aguardando') return 'Em negociação';
     return raw;
   };
-  const tradeRows = albumItems
+
+  const allTradeRows = albumItems
     .filter(i => qty(i.id) > 1 || state.tradeStatus[i.id] || state.contacts[i.id] || state.notes[i.id])
     .sort((a,b)=>a.order-b.order);
 
@@ -1486,13 +1487,15 @@ function renderTrades(){
   };
 
   const counters = {
-    available: tradeRows.filter(i => derivedStatus(i) === 'Disponível').length,
-    negotiating: tradeRows.filter(i => derivedStatus(i) === 'Em negociação').length,
-    reserved: tradeRows.filter(i => derivedStatus(i) === 'Reservada').length,
-    done: tradeRows.filter(i => derivedStatus(i) === 'Concluída').length
+    available: allTradeRows.filter(i => derivedStatus(i) === 'Disponível').length,
+    negotiating: allTradeRows.filter(i => derivedStatus(i) === 'Em negociação').length,
+    reserved: allTradeRows.filter(i => derivedStatus(i) === 'Reservada').length,
+    done: allTradeRows.filter(i => derivedStatus(i) === 'Concluída').length
   };
 
   const expanded = new Set();
+  let visibleLimit = 24;
+  let listWasOpened = false;
 
   $('#view-trades').innerHTML = `
     <section class="grid kpis trade-kpis trade-overview">
@@ -1504,7 +1507,7 @@ function renderTrades(){
 
     <section class="card trade-summary-card">
       <span class="label">Resumo para WhatsApp</span>
-      <p class="muted">Listas formatadas por seleção para mandar no grupo. Use também a comparação abaixo para cruzar listas.</p>
+      <p class="muted">Listas formatadas por seleção para mandar no grupo. Use também a proposta abaixo para cruzar listas.</p>
       <div class="button-row trade-actions">
         <button class="btn primary" id="copyDup">Copiar repetidas</button>
         <button class="btn" id="copyMissing">Copiar faltantes</button>
@@ -1514,19 +1517,31 @@ function renderTrades(){
     ${renderCompareTool()}
 
     <section class="card trade-manager-card">
-      <span class="label">Gestão de trocas</span>
-      <h3>Lista compacta</h3>
-      <p class="muted">Toque na figurinha para abrir os detalhes e editar status, contato e observações.</p>
+      <button class="drawer-head" id="tradeListToggle" type="button" aria-expanded="false">
+        <span>
+          <span class="label">Gestão de trocas</span>
+          <strong>Ver minhas repetidas</strong>
+          <small>${allTradeRows.length} figurinhas com repetidas/status</small>
+        </span>
+        <b class="chevron">⌄</b>
+      </button>
 
-      <div class="trade-toolbar">
-        <input id="tradeSearch" class="search" type="search" placeholder="Buscar figurinha, seleção ou código" autocomplete="off" autocapitalize="characters" spellcheck="false">
-        <select id="tradeStatusFilter">
-          <option value="">Todos os status</option>
-          ${statusOptions.map(v=>`<option value="${v}">${v}</option>`).join('')}
-        </select>
+      <div id="tradeListPanel" class="trade-list-panel" hidden>
+        <p class="muted">Lista carregada sob demanda para deixar a tela de Trocas mais leve no celular.</p>
+
+        <div class="trade-toolbar">
+          <input id="tradeSearch" class="search" type="search" placeholder="Buscar figurinha, seleção ou código" autocomplete="off" autocapitalize="characters" spellcheck="false">
+          <select id="tradeStatusFilter">
+            <option value="">Todos os status</option>
+            ${statusOptions.map(v=>`<option value="${v}">${v}</option>`).join('')}
+          </select>
+        </div>
+
+        <div id="tradeList" class="trade-list"></div>
+        <div class="button-row trade-load-row">
+          <button class="btn" id="loadMoreTrades" type="button">Carregar mais</button>
+        </div>
       </div>
-
-      <div id="tradeList" class="trade-list"></div>
     </section>`;
 
   $('#copyDup').addEventListener('click', async (ev)=>{
@@ -1537,11 +1552,19 @@ function renderTrades(){
     ev.preventDefault();
     await copyText(`📌 Faltantes:\n${formatMissingTradeList()}`);
   });
+
   bindCompareTool();
 
-  const searchEl = $('#tradeSearch');
-  const statusEl = $('#tradeStatusFilter');
-  const listEl = $('#tradeList');
+  const toggle = $('#tradeListToggle');
+  const panel = $('#tradeListPanel');
+
+  toggle?.addEventListener('click', () => {
+    listWasOpened = !listWasOpened;
+    panel.hidden = !listWasOpened;
+    toggle.setAttribute('aria-expanded', listWasOpened ? 'true' : 'false');
+    toggle.classList.toggle('open', listWasOpened);
+    if(listWasOpened) renderTradeList();
+  });
 
   function copyTradeMessage(item){
     const teamCode = codeOf(item);
@@ -1557,19 +1580,30 @@ function renderTrades(){
     saveState('Dados da troca limpos');
   }
 
-  function renderTradeList(){
+  function filteredTradeRows(){
+    const searchEl = $('#tradeSearch');
+    const statusEl = $('#tradeStatusFilter');
     const q = (searchEl?.value || '').trim().toLowerCase();
     const statusFilter = statusEl?.value || '';
 
-    const filtered = tradeRows.filter(item => {
+    return allTradeRows.filter(item => {
       const hay = `${item.ref} ${codeOf(item)} ${stickerDisplayName(item)}`.toLowerCase();
       const itemStatus = derivedStatus(item);
       const matchSearch = !q || hay.includes(q);
       const matchStatus = !statusFilter || itemStatus === statusFilter;
       return matchSearch && matchStatus;
     });
+  }
 
-    listEl.innerHTML = filtered.map(item => {
+  function renderTradeList(){
+    if(!listWasOpened) return;
+    const listEl = $('#tradeList');
+    if(!listEl) return;
+
+    const filtered = filteredTradeRows();
+    const visible = filtered.slice(0, visibleLimit);
+
+    listEl.innerHTML = visible.map(item => {
       const itemStatus = derivedStatus(item);
       const slug = itemStatus.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-');
       const open = expanded.has(item.id);
@@ -1618,18 +1652,24 @@ function renderTrades(){
       </article>`;
     }).join('') || '<div class="empty trade-empty">Nenhuma figurinha encontrada para esse filtro.</div>';
 
-    $$('[data-expand]').forEach(el => el.addEventListener('click', () => {
+    const loadBtn = $('#loadMoreTrades');
+    if(loadBtn){
+      loadBtn.hidden = visible.length >= filtered.length;
+      loadBtn.textContent = `Carregar mais (${visible.length}/${filtered.length})`;
+    }
+
+    $$('[data-expand]', listEl).forEach(el => el.addEventListener('click', () => {
       const id = el.dataset.expand;
       if(expanded.has(id)) expanded.delete(id);
       else expanded.add(id);
       renderTradeList();
     }));
 
-    $$('[data-q]').forEach(el => el.addEventListener('change', () => {
+    $$('[data-q]', listEl).forEach(el => el.addEventListener('change', () => {
       setQty(el.dataset.q, el.value, `${itemById(el.dataset.q)?.ref || 'Figurinha'} atualizada em Trocas`);
     }));
 
-    $$('[data-trade]').forEach(el => el.addEventListener('change', () => {
+    $$('[data-trade]', listEl).forEach(el => el.addEventListener('change', () => {
       const id = el.dataset.trade;
       const value = el.value;
       if(value) state.tradeStatus[id] = value;
@@ -1638,7 +1678,7 @@ function renderTrades(){
       renderTradeList();
     }));
 
-    $$('[data-contact]').forEach(el => el.addEventListener('change', () => {
+    $$('[data-contact]', listEl).forEach(el => el.addEventListener('change', () => {
       const id = el.dataset.contact;
       const value = String(el.value || '').trim();
       if(value) state.contacts[id] = value;
@@ -1647,7 +1687,7 @@ function renderTrades(){
       renderTradeList();
     }));
 
-    $$('[data-note]').forEach(el => el.addEventListener('change', () => {
+    $$('[data-note]', listEl).forEach(el => el.addEventListener('change', () => {
       const id = el.dataset.note;
       const value = String(el.value || '').trim();
       if(value) state.notes[id] = value;
@@ -1656,23 +1696,32 @@ function renderTrades(){
       renderTradeList();
     }));
 
-    $$('[data-copy-trade]').forEach(el => el.addEventListener('click', () => {
+    $$('[data-copy-trade]', listEl).forEach(el => el.addEventListener('click', () => {
       const item = itemById(el.dataset.copyTrade);
       if(item) copyTradeMessage(item);
     }));
 
-    $$('[data-clear-trade]').forEach(el => el.addEventListener('click', () => {
+    $$('[data-clear-trade]', listEl).forEach(el => el.addEventListener('click', () => {
       const id = el.dataset.clearTrade;
       clearTradeFields(id);
       renderTradeList();
     }));
   }
 
-  searchEl?.addEventListener('input', renderTradeList);
-  statusEl?.addEventListener('change', renderTradeList);
-
-  renderTradeList();
+  $('#tradeSearch')?.addEventListener('input', () => {
+    visibleLimit = 24;
+    renderTradeList();
+  });
+  $('#tradeStatusFilter')?.addEventListener('change', () => {
+    visibleLimit = 24;
+    renderTradeList();
+  });
+  $('#loadMoreTrades')?.addEventListener('click', () => {
+    visibleLimit += 24;
+    renderTradeList();
+  });
 }
+
 function renderMissing(){ const missing=formatList(i=>qty(i.id)===0); const owned=formatList(i=>qty(i.id)>0); const dup=formatDuplicateTradeList(); $('#view-missing').innerHTML = `<section class="card"><span class="label">Faltantes</span><div id="missingBox" class="copy-box">${escapeHtml(missing)}</div><button class="btn primary full" data-copy="missingBox">Copiar faltantes</button></section><section class="card"><span class="label">Tenho</span><div id="ownedBox" class="copy-box">${escapeHtml(owned)}</div><button class="btn full" data-copy="ownedBox">Copiar tenho</button></section><section class="card"><span class="label">Repetidas</span><div id="dupBox" class="copy-box">${escapeHtml(dup)}</div><button class="btn full" data-copy="dupBox">Copiar repetidas</button></section>`; $$('[data-copy]').forEach(b=>b.addEventListener('click',()=>copyText($(`#${b.dataset.copy}`).textContent))); }
 
 function profileStatsCards(){

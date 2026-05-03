@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-5-7-offline-estabilidade';
+const CACHE='meu-album-copa-v1-5-8-trocas-leve';
 const APP_SHELL=[
   './',
   './index.html',

@@ -2411,3 +2411,49 @@ textarea{
     text-overflow:ellipsis;
   }
 }
+
+
+/* v1.5.8 - Trocas sob demanda */
+.drawer-head{
+  width:100%;
+  border:0;
+  background:transparent;
+  color:inherit;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:14px;
+  text-align:left;
+  padding:0;
+  cursor:pointer;
+}
+.drawer-head span{
+  display:grid;
+  gap:4px;
+}
+.drawer-head strong{
+  font-size:1.08rem;
+}
+.drawer-head small{
+  color:var(--muted);
+  font-size:.84rem;
+}
+.drawer-head .chevron{
+  color:var(--gold);
+  font-size:1.2rem;
+  transition:transform .2s ease;
+}
+.drawer-head.open .chevron{
+  transform:rotate(180deg);
+}
+.trade-list-panel{
+  margin-top:14px;
+  padding-top:14px;
+  border-top:1px solid var(--line);
+}
+.trade-load-row{
+  margin-top:12px;
+}
+.trade-load-row .btn{
+  width:100%;
+}
