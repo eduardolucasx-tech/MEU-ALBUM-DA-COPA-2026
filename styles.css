@@ -3982,3 +3982,52 @@ button.brand-logo,
   background:#d6af52;
   color:#111;
 }
+
+
+/* v1.7.13 - filtro de status Álbum/Rápido */
+.status-filter-card{
+  border:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015));
+  border-radius:22px;
+  padding:14px;
+  margin:12px 0;
+}
+.status-filter-row{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+  margin-top:10px;
+}
+.status-filter-btn{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.04);
+  color:var(--muted);
+  border-radius:999px;
+  padding:10px 8px;
+  font:inherit;
+  font-size:.78rem;
+  font-weight:900;
+  cursor:pointer;
+}
+.status-filter-btn.active{
+  background:linear-gradient(135deg,var(--gold),#f5d978);
+  color:#111;
+  border-color:rgba(214,175,82,.62);
+  box-shadow:0 8px 24px rgba(214,175,82,.16);
+}
+.status-filter-summary{
+  margin:8px 0 0;
+  font-size:.82rem;
+}
+.status-filter-summary strong{
+  color:var(--gold);
+}
+@media(max-width:520px){
+  .status-filter-row{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .status-filter-btn{
+    min-height:42px;
+  }
+}

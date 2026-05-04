@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.12-fix-eventos-duplicados';
-const VERSION_LABEL = 'v1.7.12';
-const VERSION_CHANGE = 'Correção na aba Álbum: botões e figurinhas não recebem mais eventos duplicados, evitando remover duas unidades ao mexer em repetidas da mesma seleção.';
+const VERSION = '1.7.13-filtro-status';
+const VERSION_LABEL = 'v1.7.13';
+const VERSION_CHANGE = 'Novo filtro de visualização por status no Álbum e no Rápido: Todas, Faltantes, Tenho e Repetidas.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -916,6 +916,9 @@ function render(){
   if(currentView === 'trades') renderTrades();
   if(currentView === 'missing') renderMissing();
   if(currentView === 'profile') renderProfile();
+
+  bindStatusFilter('album');
+  bindStatusFilter('quick');
 }
 function kpi(label, value, sub=''){ return `<div class="kpi"><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}${sub ? ` · ${escapeHtml(sub)}` : ''}</span></div>`; }
 function kpiAction(label, value, filter, hint='Toque para filtrar'){
@@ -1085,6 +1088,54 @@ function renderHome(){
 
   bindOnboarding();
   $('#continueSessionBtn')?.addEventListener('click', continueLastSession);
+}
+
+
+const STATUS_FILTERS = [
+  {key:'all', label:'Todas'},
+  {key:'missing', label:'Faltantes'},
+  {key:'owned', label:'Tenho'},
+  {key:'duplicates', label:'Repetidas'}
+];
+
+function getStatusFilter(scope){
+  return localStorage.getItem(`meu-album-copa-status-filter-${scope}`) || 'all';
+}
+function setStatusFilter(scope, value){
+  const allowed = STATUS_FILTERS.some(f => f.key === value) ? value : 'all';
+  localStorage.setItem(`meu-album-copa-status-filter-${scope}`, allowed);
+}
+function stickerMatchesStatusFilter(item, filter){
+  const q = qty(item.id);
+  if(filter === 'missing') return q === 0;
+  if(filter === 'owned') return q > 0;
+  if(filter === 'duplicates') return q > 1;
+  return true;
+}
+function renderStatusFilter(scope){
+  const active = getStatusFilter(scope);
+  return `<div class="status-filter-card" data-status-scope="${escapeAttr(scope)}">
+    <span class="label">Visualizar figurinhas</span>
+    <div class="status-filter-row" role="group" aria-label="Filtro de status">
+      ${STATUS_FILTERS.map(f=>`<button type="button" class="status-filter-btn ${active === f.key ? 'active' : ''}" data-status-filter="${escapeAttr(f.key)}">${escapeHtml(f.label)}</button>`).join('')}
+    </div>
+  </div>`;
+}
+function bindStatusFilter(scope){
+  $$(`[data-status-scope="${scope}"] [data-status-filter]`).forEach(btn=>{
+    if(btn.dataset.statusBound === '1') return;
+    btn.dataset.statusBound = '1';
+    btn.addEventListener('click', ()=>{
+      setStatusFilter(scope, btn.dataset.statusFilter || 'all');
+      render();
+    });
+  });
+}
+function statusFilterSummary(scope, items){
+  const filter = getStatusFilter(scope);
+  if(filter === 'all') return '';
+  const label = STATUS_FILTERS.find(f=>f.key===filter)?.label || 'Todas';
+  return `<p class="muted status-filter-summary">Mostrando apenas: <strong>${escapeHtml(label)}</strong> · ${items.length} figurinha(s)</p>`;
 }
 
 function renderAlbum(){
@@ -1274,6 +1325,7 @@ function renderQuickView(){
   const groups = [...new Set(window.ALBUM_DATA.teams.map(t => t.group))];
   const helpOpen = localStorage.getItem(QUICK_HELP_KEY) === '1';
   $('#view-quick').innerHTML = `
+    ${renderStatusFilter('quick')}
     <section class="card filter-drawer-card quick-help-card ${helpOpen ? 'open' : ''}">
       <button id="quickHelpToggle" class="drawer-toggle" type="button" aria-expanded="${helpOpen ? 'true' : 'false'}">
         <span>

@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-7-12-fix-eventos-duplicados';
+const CACHE='meu-album-copa-v1-7-13-filtro-status';
 const APP_SHELL=[
   './',
   './index.html',
