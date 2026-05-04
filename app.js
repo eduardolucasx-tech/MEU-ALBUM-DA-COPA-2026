@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.10-ultra-duas-paginas';
-const VERSION_LABEL = 'v1.7.10';
-const VERSION_CHANGE = 'Colinha Ultra ajustada: a matriz seca agora sai em 2 páginas fixas, evitando uma última página quase vazia só para CC.';
+const VERSION = '1.7.11-hotfix-repetidas';
+const VERSION_LABEL = 'v1.7.11';
+const VERSION_CHANGE = 'Hotfix: corrige remoção de repetidas em sequência na aba Álbum sem alterar a Colinha Ultra em 2 páginas.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -357,20 +357,24 @@ function stickerDisplayMeta(item){
   return item && item.code === 'FWC' ? 'ESPECIAL · FIFA' : `${typeLabel(item?.type)} · ${item?.section || ''}`;
 }
 function itemById(id){ return itemMap.get(id); }
-function qty(id){ return Math.max(0, Number(state.quantities[id] || 0)); }
-function extras(item){ return Math.max(qty(item.id)-1, 0); }
-function statusOf(item){ const q = qty(item.id); if(q <= 0) return 'missing'; if(q === 1) return 'owned'; return 'duplicate'; }
-function statusLabel(item){ const s = statusOf(item); return s === 'missing' ? 'Falta' : s === 'owned' ? 'Tenho' : `Repetida +${extras(item)}`; }
-function initials(text, fallback){ return String(text || fallback || '').split(/\s+|\/+|-+/).filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase() || '★'; }
-function flagEmoji(code){ return ''; }
-function flagImg(code, label=''){
-  if(!code) return '';
-  const normalized = String(code).toUpperCase() === 'CC' ? 'coc' : String(code).toLowerCase();
-  const safeCode = escapeAttr(String(code).toUpperCase());
-  const safeLabel = escapeAttr(label || code);
-  const src = `./flags/${normalized}.svg`;
-  return `<span class="flag-wrap" data-code="${safeCode}"><img class="flag-img" src="${src}" alt="${safeLabel}" loading="lazy" decoding="async" onerror="this.closest('.flag-wrap')?.classList.add('flag-failed'); this.remove();"></span>`;
+
+function clampStickerQty(value){
+  const n = Number(value);
+  if(!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.floor(n));
 }
+function currentStickerQty(id){
+  return clampStickerQty(state?.quantities?.[id] || state?.items?.[id] || 0);
+}
+function changeStickerQty(id, delta, message){
+  const item = itemById(id);
+  const next = clampStickerQty(currentStickerQty(id) + Number(delta || 0));
+  setQty(id, next, message || `${item?.ref || 'Figurinha'} atualizada`);
+  return next;
+}
+
+function qty(id){ return currentStickerQty(id); }
+
 function flagMark(code, label=''){
   return flagImg(code, label) || `<span class="flag-wrap flag-failed" data-code="${escapeAttr(code || '')}"></span>`;
 }
@@ -650,19 +654,26 @@ function saveState(label){
   queueCloudSave();
 }
 function setQty(id, value, label, options={}){
+  value = clampStickerQty(value);
   const item = itemById(id);
-  setLastUsedTeamFromItem(item); if(!item) return;
-  const before = qty(id);
-  const after = Math.max(0, Number(value)||0);
+  setLastUsedTeamFromItem(item);
+  if(!item) return;
+  const before = currentStickerQty(id);
+  const after = value;
   if(before === after) return;
   state.quantities[id] = after;
   lastUndo = {id, qty:before, label:`${item.ref} voltou para ${before}`};
   saveState(label || `${item.ref} atualizada`);
   render();
-  toastAction(`${item.ref}: ${qty(id)} unidade(s)`, 'Desfazer', undoLastAction);
+  toastAction(`${item.ref}: ${currentStickerQty(id)} unidade(s)`, 'Desfazer', undoLastAction);
 }
-function addQty(id, delta){ const item = itemById(id);
-  setLastUsedTeamFromItem(item); if(item) setQty(id, qty(id)+delta, `${item.ref} ${delta>0?'adicionada':'removida'}`); }
+function addQty(id, delta=1, label){
+  const item = itemById(id);
+  setLastUsedTeamFromItem(item);
+  if(!item) return;
+  changeStickerQty(id, Number(delta || 0), label || `${item.ref} atualizada`);
+}
+
 function quickToggle(id){ const item = itemById(id); if(item) setQty(id, qty(id)>0 ? 0 : 1, `${item.ref} ${qty(id)>0?'marcada como falta':'marcada como tenho'}`); }
 
 function flashGesture(el, className){
@@ -781,7 +792,7 @@ function bindStickerGesture(el, id, onSingle, onClear){
 function quickAddOne(id){
   const item = itemById(id);
   if(!item) return;
-  setQty(id, qty(id) + 1, `${item.ref} +1 no visual rápido`);
+  setQty(id, currentStickerQty(id) + 1, `${item.ref} +1 no visual rápido`);
 }
 function quickClear(id){
   const item = itemById(id);
@@ -1228,7 +1239,7 @@ function renderTeamList(){
   bindStickerActions(container);
 }
 function stickerCard(item){
-  const q = qty(item.id); const s = statusOf(item); const name = stickerDisplayName(item); const meta = stickerDisplayMeta(item); const special = item.type === 'especial' || item.type === 'history' || item.type === 'coca-cola'; const shield = item.type === 'escudo'; const n = String(item.number).padStart(2,'0'); const badge = (!special && item.code) ? flagMark(item.code, item.section) : escapeHtml(initials(name, item.code));
+  const q = currentStickerQty(item.id); const s = statusOf(item); const name = stickerDisplayName(item); const meta = stickerDisplayMeta(item); const special = item.type === 'especial' || item.type === 'history' || item.type === 'coca-cola'; const shield = item.type === 'escudo'; const n = String(item.number).padStart(2,'0'); const badge = (!special && item.code) ? flagMark(item.code, item.section) : escapeHtml(initials(name, item.code));
   return `<div class="sticker ${s} ${special?'special':''} ${shield?'shield':''}"><button class="sticker-main" data-toggle="${item.id}" aria-label="${escapeAttr(item.ref)} ${escapeAttr(name)}"><span class="status ${s}">${s==='missing'?'FALTA':s==='owned'?'TENHO':`REP +${extras(item)}`}</span><span class="sticker-face"><span class="sticker-top"><span class="code">${escapeHtml(codeOf(item))}</span><span class="num">${escapeHtml(n)}</span></span><span class="art"><span class="emblem">${special?'★':badge}</span></span><span class="sticker-info"><strong class="sticker-name">${escapeHtml(name)}</strong><span class="sticker-meta">${escapeHtml(meta)}</span></span></span></button><div class="qty"><button class="qty-btn" data-dec="${item.id}">−</button><b>${q}</b><button class="qty-btn" data-inc="${item.id}">+</button></div></div>`;
 }
 function bindStickerActions(ctx=document){
@@ -1354,7 +1365,7 @@ function renderQuickSections(){
 }
 
 function quickStickerCell(item){
-  const q = qty(item.id);
+  const q = currentStickerQty(item.id);
   const stateClass = q > 1 ? 'duplicate' : q === 1 ? 'owned' : 'missing';
   const n = item.number === 0 ? '00' : String(item.number).padStart(2,'0');
   const title = `${item.ref} · ${stickerDisplayName(item)} · ${statusLabel(item)} · toque = +1 · toque duplo = zerar`;
@@ -1833,7 +1844,7 @@ function schoolListRows(mode='school'){
   SECTION_LIST.forEach(sec => {
     const items = sectionItems(sec).sort((a,b)=>a.number-b.number);
     const filtered = items.filter(item => {
-      const q = qty(item.id);
+      const q = currentStickerQty(item.id);
       if(mode === 'owned') return q > 0;
       if(mode === 'duplicates') return q > 1;
       if(mode === 'missing') return q === 0;
@@ -1853,7 +1864,7 @@ function schoolListRows(mode='school'){
     });
 
     filtered.forEach(item => {
-      const q = qty(item.id);
+      const q = currentStickerQty(item.id);
       rows.push({
         type:'item',
         ref:item.ref,
@@ -1887,13 +1898,13 @@ function schoolCheck(checked){
   return `<span class="school-box ${checked ? 'checked' : ''}">${checked ? '✓' : ''}</span>`;
 }
 function schoolStatusClass(item){
-  const q = qty(item.id);
+  const q = currentStickerQty(item.id);
   if(q > 1) return 'duplicate';
   if(q > 0) return 'owned';
   return 'missing';
 }
 function schoolStatusLabel(item, mode='default'){
-  const q = qty(item.id);
+  const q = currentStickerQty(item.id);
   if(q > 1) return `+${q - 1}`;
   if(q > 0) return '✓';
   return mode === 'ultra' ? '□' : '';

@@ -1,0 +1,1 @@
+v1.7.11: hotfix para bug das repetidas na aba Álbum. Preserva a base enviada/disponível e atualiza cache/versão.
