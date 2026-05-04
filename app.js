@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.20-botoes-filtro-rapido-home-ok';
-const VERSION_LABEL = 'v1.7.20';
-const VERSION_CHANGE = 'Correção segura da v1.7.19: Home preservada e botões Todas, Faltantes, Tenho e Repetidas sincronizados com os filtros internos no Álbum e no Rápido, incluindo permanência visual temporária das faltantes recém-marcadas.';
+const VERSION = '1.7.21-seguranca-cache-performance';
+const VERSION_LABEL = 'v1.7.21';
+const VERSION_CHANGE = 'Blindagem da v1.7.20: regras Firebase alinhadas às coleções reais, cache atualizado, headers de segurança para Vercel e pequenos ajustes de performance nos filtros.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -26,6 +26,13 @@ const ONBOARDING_KEY = 'meu-album-copa-onboarding-v1';
 const QUICK_HELP_KEY = 'meu-album-copa-quick-help-open-v1';
 const $ = (sel, ctx=document) => ctx.querySelector(sel);
 const $$ = (sel, ctx=document) => [...ctx.querySelectorAll(sel)];
+const debounce = (fn, wait=120) => {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), wait);
+  };
+};
 
 const RAW_SECTIONS = Array.isArray(window.ALBUM_DATA.sections) ? window.ALBUM_DATA.sections.filter(Boolean) : [];
 const FALLBACK_SECTIONS = [
@@ -1054,8 +1061,9 @@ function renderHome(){
     <div id="teamList" class="team-list"></div>`;
 
   const sync = () => renderTeamList();
+  const syncSearch = debounce(sync, 120);
   $('#statusFilter').value = statusFilterToNativeValue(getStatusFilter('album'));
-  $('#albumSearch').addEventListener('input', sync);
+  $('#albumSearch').addEventListener('input', syncSearch);
   $('#groupFilter').addEventListener('change', sync);
   $('#statusFilter').addEventListener('change', () => {
     setStatusFilter('album', nativeStatusToButtonValue($('#statusFilter')?.value || ''));
@@ -1485,6 +1493,7 @@ function renderQuickView(){
   });
 
   const sync = () => renderQuickSections();
+  const syncSearch = debounce(sync, 120);
   $('#quickStatusFilter').value = statusFilterToNativeValue(getStatusFilter('quick'));
   $('#quickGroupFilter')?.addEventListener('change', sync);
   $('#quickStatusFilter')?.addEventListener('change', ()=>{
@@ -1492,7 +1501,7 @@ function renderQuickView(){
     sync();
     bindStatusFilter('quick');
   });
-  $('#quickSearch')?.addEventListener('input', sync);
+  $('#quickSearch')?.addEventListener('input', syncSearch);
   $('#quickSortModeBtn')?.addEventListener('click', () => {
     albumSortMode = albumSortMode === 'album' ? 'alpha' : 'album';
     localStorage.setItem('meu-album-copa-sort-mode', albumSortMode);
@@ -3194,18 +3203,23 @@ async function joinFamilyAlbum(code){
     downloadJson(backupFilename('backup-antes-de-entrar-familia'), makeBackupPayload('before-join-family'));
   }
   const doc = familyCloudDoc(cleaned);
-  const snap = await doc.get();
-  if(!snap.exists) return toast('Código não encontrado.');
-  await doc.set({
-    members: {[cloud.user.uid]: memberInfo()},
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }, {merge:true});
-  familyAlbumMeta = snap.data();
-  setActiveAlbumMode('family', cleaned);
-  await loadCloud(true);
-  startRealtimeSync();
-  render();
-  toast('Você entrou no álbum familiar.');
+  try{
+    const memberPath = `members.${cloud.user.uid}`;
+    const payload = {updatedAt: firebase.firestore.FieldValue.serverTimestamp()};
+    payload[memberPath] = memberInfo();
+    await doc.update(payload);
+    const snap = await doc.get();
+    if(!snap.exists) return toast('Código não encontrado.');
+    familyAlbumMeta = snap.data();
+    setActiveAlbumMode('family', cleaned);
+    await loadCloud(true);
+    startRealtimeSync();
+    render();
+    toast('Você entrou no álbum familiar.');
+  }catch(e){
+    console.warn('join family failed', e);
+    toast('Código não encontrado ou sem permissão.');
+  }
 }
 async function switchToPersonalAlbum(){
   if(!cloud.user) return;

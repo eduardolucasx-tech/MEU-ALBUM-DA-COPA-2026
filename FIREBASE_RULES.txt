@@ -2,13 +2,52 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /checklist_mundial_users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function signedIn() {
+      return request.auth != null;
     }
 
-    // Uso fechado: qualquer usuário logado com o código da família pode ler/gravar.
-    match /checklist_mundial_families/{familyCode} {
-      allow read, write: if request.auth != null;
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isFamilyMember() {
+      return signedIn()
+        && resource.data.members[request.auth.uid].uid == request.auth.uid;
+    }
+
+    function isFamilyOwner() {
+      return signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    function createsOwnFamily(familyCode) {
+      return signedIn()
+        && request.resource.data.inviteCode == familyCode
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.members[request.auth.uid].uid == request.auth.uid;
+    }
+
+    function joinsExistingFamily(familyCode) {
+      return signedIn()
+        && resource.data.inviteCode == familyCode
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
+        && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid])
+        && request.resource.data.members[request.auth.uid].uid == request.auth.uid;
+    }
+
+    // Álbum pessoal: cada conta Google só acessa o próprio documento.
+    match /meu_album_copa_v1_users/{userId} {
+      allow read, write: if isSelf(userId);
+    }
+
+    // Álbum familiar: ninguém lista todos os álbuns.
+    // Criador cria o documento; membros leem/editam o álbum compartilhado.
+    // Entrada por código: usuário autenticado só pode adicionar a si mesmo como membro.
+    match /meu_album_copa_v1_family_albums/{familyCode} {
+      allow list: if false;
+      allow create: if createsOwnFamily(familyCode);
+      allow get: if isFamilyMember();
+      allow update: if isFamilyMember() || joinsExistingFamily(familyCode);
+      allow delete: if isFamilyOwner();
     }
   }
 }
