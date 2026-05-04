@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-7-15-faltantes-preservados';
+const CACHE='meu-album-copa-v1-7-16-fix-botoes-status';
 const APP_SHELL=[
   './',
   './index.html',

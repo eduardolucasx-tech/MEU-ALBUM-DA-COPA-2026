@@ -4043,3 +4043,18 @@ button.brand-logo,
 .status-filter-summary strong{
   color:var(--gold);
 }
+
+
+/* v1.7.16 - botões de filtro status corrigidos */
+.status-filter-btn{
+  touch-action:manipulation;
+  user-select:none;
+  -webkit-user-select:none;
+  pointer-events:auto;
+}
+.status-filter-card{
+  pointer-events:auto;
+}
+.status-filter-btn.active{
+  transform:translateY(-1px);
+}

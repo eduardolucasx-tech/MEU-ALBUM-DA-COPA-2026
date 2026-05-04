@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.15-faltantes-preservados';
-const VERSION_LABEL = 'v1.7.15';
-const VERSION_CHANGE = 'UX do filtro Faltantes refinada: ao marcar uma figurinha como tenho, ela fica dourada e permanece visível até sair da aba e voltar.';
+const VERSION = '1.7.16-fix-botoes-status';
+const VERSION_LABEL = 'v1.7.16';
+const VERSION_CHANGE = 'Correção definitiva dos botões de filtro por status no Álbum e no Rápido, usando listener global único e leitura direta do escopo.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -908,23 +908,9 @@ function initSwipeNavigation(){
 }
 
 
-function bindStatusFilterDelegated(){
-  if(document.body.dataset.statusFilterDelegated === '1') return;
-  document.body.dataset.statusFilterDelegated = '1';
-  document.body.addEventListener('click', (ev)=>{
-    const btn = ev.target.closest('[data-status-filter]');
-    if(!btn) return;
-    const card = btn.closest('[data-status-scope]');
-    const scope = card?.dataset?.statusScope;
-    if(!scope) return;
-    ev.preventDefault();
-    ev.stopPropagation();
-    setStatusFilter(scope, btn.dataset.statusFilter || 'all');
-    render();
-  });
-}
 
 function render(){
+  bindStatusFilterGlobal();
   bindStatusFilterDelegated();
   bindHeaderShortcuts();
   updateHeaderIdentity();
@@ -1165,6 +1151,33 @@ function stickerMatchesStatusFilter(item, filter, scope=null){
   return true;
 }
 
+
+function bindStatusFilterGlobal(){
+  if(document.body.dataset.statusFilterGlobal === '1') return;
+  document.body.dataset.statusFilterGlobal = '1';
+
+  document.body.addEventListener('pointerup', (ev)=>{
+    const btn = ev.target.closest('[data-status-filter]');
+    if(!btn) return;
+
+    const wrapper = btn.closest('[data-status-scope]');
+    const scope = wrapper?.dataset?.statusScope || (currentView === 'quick' ? 'quick' : 'album');
+    const filter = btn.dataset.statusFilter || 'all';
+
+    ev.preventDefault();
+    ev.stopPropagation();
+
+    setStatusFilter(scope, filter);
+
+    // Atualiza visual imediatamente antes do render.
+    $$(`[data-status-scope="${scope}"] [data-status-filter]`).forEach(b=>{
+      b.classList.toggle('active', b.dataset.statusFilter === filter);
+    });
+
+    render();
+  }, true);
+}
+
 function renderStatusFilter(scope){
   const active = getStatusFilter(scope);
   return `<div class="status-filter-card" data-status-scope="${escapeAttr(scope)}">
@@ -1175,15 +1188,12 @@ function renderStatusFilter(scope){
   </div>`;
 }
 function bindStatusFilter(scope){
+  const active = getStatusFilter(scope);
   $$(`[data-status-scope="${scope}"] [data-status-filter]`).forEach(btn=>{
-    if(btn.dataset.statusBound === '1') return;
-    btn.dataset.statusBound = '1';
-    btn.addEventListener('click', ()=>{
-      setStatusFilter(scope, btn.dataset.statusFilter || 'all');
-      render();
-    });
+    btn.classList.toggle('active', btn.dataset.statusFilter === active);
   });
 }
+
 function statusFilterSummary(scope, items){
   const filter = getStatusFilter(scope);
   if(filter === 'all') return '';
