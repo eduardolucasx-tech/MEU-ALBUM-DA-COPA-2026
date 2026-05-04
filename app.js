@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.16-fix-botoes-status';
-const VERSION_LABEL = 'v1.7.16';
-const VERSION_CHANGE = 'Correção definitiva dos botões de filtro por status no Álbum e no Rápido, usando listener global único e leitura direta do escopo.';
+const VERSION = '1.7.17-fix-grade-rapida';
+const VERSION_LABEL = 'v1.7.17';
+const VERSION_CHANGE = 'Correção da grade do Visual Rápido: o filtro Todas, Faltantes, Tenho e Repetidas agora realmente limita os quadradinhos exibidos.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1202,6 +1202,7 @@ function statusFilterSummary(scope, items){
 }
 
 function renderAlbum(){
+  const albumStatusFilter = getStatusFilter('album');
   // Compatibilidade: a aba Álbum foi unificada ao Início.
   setView('home');
 }
@@ -1390,6 +1391,15 @@ function quickStatusMatches(item){
 }
 function albumStatusMatches(item){
   return stickerMatchesStatusFilter(item, getStatusFilter('album'), 'album');
+}
+
+
+function visibleSectionItemsForScope(section, scope){
+  const filter = getStatusFilter(scope);
+  return sectionItems(section).filter(item => stickerMatchesStatusFilter(item, filter, scope));
+}
+function hasVisibleSectionItemsForScope(section, scope){
+  return visibleSectionItemsForScope(section, scope).length > 0;
 }
 
 function renderQuickView(){

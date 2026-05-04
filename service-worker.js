@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-7-16-fix-botoes-status';
+const CACHE='meu-album-copa-v1-7-17-fix-grade-rapida';
 const APP_SHELL=[
   './',
   './index.html',
