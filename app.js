@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.21-seguranca-cache-performance';
-const VERSION_LABEL = 'v1.7.21';
-const VERSION_CHANGE = 'Blindagem da v1.7.20: regras Firebase alinhadas às coleções reais, cache atualizado, headers de segurança para Vercel e pequenos ajustes de performance nos filtros.';
+const VERSION = '1.7.22-pwa-auto-update';
+const VERSION_LABEL = 'v1.7.22';
+const VERSION_CHANGE = 'Ajuste do PWA: atualização automática do service worker, assets principais em modo network-first e redução de versão antiga presa no celular.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -3424,7 +3424,25 @@ bindHeaderShortcuts();
 bindConnectionEvents();
 updateConnectionBadge();
 $('#syncButton').addEventListener('click',syncNow);
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+// PWA update guard: evita o app instalado ficar preso em app.js/styles/data antigos.
+if('serviceWorker' in navigator){
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(refreshing) return;
+    refreshing = true;
+    window.location.reload();
+  });
+
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(reg=>{
+        // Procura atualização logo ao abrir e depois periodicamente enquanto o app estiver aberto.
+        reg.update().catch(()=>{});
+        setInterval(()=>reg.update().catch(()=>{}), 60 * 1000);
+      })
+      .catch(()=>{});
+  });
+}
 initCloud();
 render();
 setTimeout(() => {
