@@ -4060,8 +4060,8 @@ button.brand-logo,
 }
 
 
-/* v1.7.17 - filtro realmente aplicado na grade */
-.status-filter-card .status-filter-btn.active{
+/* v1.7.18 - filtro seguro */
+.status-filter-btn.active{
   background:linear-gradient(135deg,var(--gold),#f5d978);
   color:#111;
 }

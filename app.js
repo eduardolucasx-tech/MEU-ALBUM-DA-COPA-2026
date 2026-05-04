@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.17-fix-grade-rapida';
-const VERSION_LABEL = 'v1.7.17';
-const VERSION_CHANGE = 'Correção da grade do Visual Rápido: o filtro Todas, Faltantes, Tenho e Repetidas agora realmente limita os quadradinhos exibidos.';
+const VERSION = '1.7.18-safe-filtro-grade';
+const VERSION_LABEL = 'v1.7.18';
+const VERSION_CHANGE = 'Correção segura do filtro de status: aplica o filtro nos quadradinhos do Rápido e do Álbum sem alterar a estrutura da Home.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -1178,6 +1178,14 @@ function bindStatusFilterGlobal(){
   }, true);
 }
 
+
+function currentScopeStatusFilter(scope){
+  return getStatusFilter(scope || (currentView === 'quick' ? 'quick' : 'album'));
+}
+function shouldRenderStickerInScope(item, scope){
+  return stickerMatchesStatusFilter(item, currentScopeStatusFilter(scope), scope);
+}
+
 function renderStatusFilter(scope){
   const active = getStatusFilter(scope);
   return `<div class="status-filter-card" data-status-scope="${escapeAttr(scope)}">
@@ -1202,7 +1210,6 @@ function statusFilterSummary(scope, items){
 }
 
 function renderAlbum(){
-  const albumStatusFilter = getStatusFilter('album');
   // Compatibilidade: a aba Álbum foi unificada ao Início.
   setView('home');
 }
@@ -1391,15 +1398,6 @@ function quickStatusMatches(item){
 }
 function albumStatusMatches(item){
   return stickerMatchesStatusFilter(item, getStatusFilter('album'), 'album');
-}
-
-
-function visibleSectionItemsForScope(section, scope){
-  const filter = getStatusFilter(scope);
-  return sectionItems(section).filter(item => stickerMatchesStatusFilter(item, filter, scope));
-}
-function hasVisibleSectionItemsForScope(section, scope){
-  return visibleSectionItemsForScope(section, scope).length > 0;
 }
 
 function renderQuickView(){

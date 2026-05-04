@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-7-17-fix-grade-rapida';
+const CACHE='meu-album-copa-v1-7-18-safe-filtro-grade';
 const APP_SHELL=[
   './',
   './index.html',
