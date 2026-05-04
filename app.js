@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.19-botoes-usam-filtro-existente';
-const VERSION_LABEL = 'v1.7.19';
-const VERSION_CHANGE = 'Correção segura: botões Todas, Faltantes, Tenho e Repetidas agora acionam os filtros internos já existentes no Álbum e no Rápido.';
+const VERSION = '1.7.20-botoes-filtro-rapido-home-ok';
+const VERSION_LABEL = 'v1.7.20';
+const VERSION_CHANGE = 'Correção segura da v1.7.19: Home preservada e botões Todas, Faltantes, Tenho e Repetidas sincronizados com os filtros internos no Álbum e no Rápido, incluindo permanência visual temporária das faltantes recém-marcadas.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -836,6 +836,7 @@ function sectionStats(section){ const items = sectionItems(section); const owned
 function ranking(){ return window.ALBUM_DATA.teams.map(t => ({...t, ...sectionStats(t)})).sort((a,b)=>b.progress-a.progress || a.missing-b.missing); }
 
 function setView(view){
+  if(currentView !== view) clearPreservedMissingWhenLeaving(view);
   currentView = view;
   $$('.view').forEach(v => v.classList.toggle('active', v.id === `view-${view}`));
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
@@ -1008,6 +1009,8 @@ function renderHome(){
       </div>
     </section>` : ''}
 
+    ${renderStatusFilter('album')}
+
     <section class="card filter-drawer-card">
       <button id="filterDrawerToggle" class="drawer-toggle" type="button" aria-expanded="false">
         <span>
@@ -1051,22 +1054,32 @@ function renderHome(){
     <div id="teamList" class="team-list"></div>`;
 
   const sync = () => renderTeamList();
+  $('#statusFilter').value = statusFilterToNativeValue(getStatusFilter('album'));
   $('#albumSearch').addEventListener('input', sync);
   $('#groupFilter').addEventListener('change', sync);
-  $('#statusFilter').addEventListener('change', () => { updateKpiActions(); sync(); });
+  $('#statusFilter').addEventListener('change', () => {
+    setStatusFilter('album', nativeStatusToButtonValue($('#statusFilter')?.value || ''));
+    updateKpiActions();
+    bindStatusFilter('album');
+    sync();
+  });
   $('#clearFilters').addEventListener('click', () => {
     $('#albumSearch').value='';
     $('#groupFilter').value='';
     $('#statusFilter').value='';
+    setStatusFilter('album', 'all');
     updateKpiActions();
+    bindStatusFilter('album');
     sync();
   });
   $$('.kpi-action').forEach(btn => btn.addEventListener('click', () => {
     const target = btn.dataset.kpiFilter === 'all' ? '' : btn.dataset.kpiFilter;
     $('#statusFilter').value = target;
+    setStatusFilter('album', nativeStatusToButtonValue(target));
     updateKpiActions();
+    bindStatusFilter('album');
     closeAllSectionsOnFirstHome();
-  renderTeamList();
+    renderTeamList();
     $('#teamList')?.scrollIntoView({behavior:'smooth', block:'start'});
   }));
   $('#homeGoogleLogin')?.addEventListener('click', signInCloud);
@@ -1281,7 +1294,8 @@ function renderTeamList(){
   for(const sec of sections){
     const key = sec.sectionKey || sec.code;
     const allItems = sectionItems(sec);
-    const items = allItems.filter(i => matchItem(i, q, status));
+    const statusButton = nativeStatusToButtonValue(status);
+    const items = allItems.filter(i => matchItem(i, q, '') && stickerMatchesStatusFilter(i, statusButton, 'album'));
     if(!items.length) continue;
 
     const st = sectionStats(sec);
@@ -1332,7 +1346,9 @@ function renderTeamList(){
     $('#albumSearch').value='';
     $('#groupFilter').value='';
     $('#statusFilter').value='';
+    setStatusFilter('album', 'all');
     updateKpiActions();
+    bindStatusFilter('album');
     renderTeamList();
   });
 
@@ -1469,6 +1485,7 @@ function renderQuickView(){
   });
 
   const sync = () => renderQuickSections();
+  $('#quickStatusFilter').value = statusFilterToNativeValue(getStatusFilter('quick'));
   $('#quickGroupFilter')?.addEventListener('change', sync);
   $('#quickStatusFilter')?.addEventListener('change', ()=>{
     setStatusFilter('quick', nativeStatusToButtonValue($('#quickStatusFilter')?.value || ''));
@@ -1491,7 +1508,7 @@ function renderQuickView(){
 function renderQuickSections(){
   const group = $('#quickGroupFilter')?.value || '';
   const query = ($('#quickSearch')?.value || '').trim().toLowerCase();
-  const status = $('#quickStatusFilter')?.value || '';
+  const status = getStatusFilter('quick');
   const html = sortedSectionsForAlbum()
     .filter(sec => !group || sec.group === group)
     .filter(sec => {
@@ -1500,7 +1517,7 @@ function renderQuickSections(){
       return hay.includes(query);
     })
     .map(sec => {
-      const items = sectionItems(sec).filter(i => !status || statusOf(i) === status);
+      const items = sectionItems(sec).filter(i => stickerMatchesStatusFilter(i, status, 'quick'));
       if(!items.length) return '';
       const st = sectionStats(sec);
       const groupLabel = sec.group === 'EXTRAS' ? 'Extras' : `Grupo ${sec.group}`;
