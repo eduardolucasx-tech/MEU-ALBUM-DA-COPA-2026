@@ -4031,3 +4031,15 @@ button.brand-logo,
     min-height:42px;
   }
 }
+
+
+/* v1.7.14 - filtro do Modo Rápido funcional */
+.status-filter-card[data-status-scope="quick"] .status-filter-btn.active{
+  transform:translateY(-1px);
+}
+
+
+/* v1.7.15 - faltantes preservados visualmente */
+.status-filter-summary strong{
+  color:var(--gold);
+}

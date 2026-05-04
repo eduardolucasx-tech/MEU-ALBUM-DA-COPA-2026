@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.13-filtro-status';
-const VERSION_LABEL = 'v1.7.13';
-const VERSION_CHANGE = 'Novo filtro de visualização por status no Álbum e no Rápido: Todas, Faltantes, Tenho e Repetidas.';
+const VERSION = '1.7.15-faltantes-preservados';
+const VERSION_LABEL = 'v1.7.15';
+const VERSION_CHANGE = 'UX do filtro Faltantes refinada: ao marcar uma figurinha como tenho, ela fica dourada e permanece visível até sair da aba e voltar.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -655,6 +655,7 @@ function setQty(id, value, label, options={}){
   const before = qty(id);
   const after = Math.max(0, Number(value)||0);
   if(before === after) return;
+  preserveMissingVisualIfNeeded(id, before, after);
   state.quantities[id] = after;
   lastUndo = {id, qty:before, label:`${item.ref} voltou para ${before}`};
   saveState(label || `${item.ref} atualizada`);
@@ -906,7 +907,25 @@ function initSwipeNavigation(){
   }, {passive:true});
 }
 
+
+function bindStatusFilterDelegated(){
+  if(document.body.dataset.statusFilterDelegated === '1') return;
+  document.body.dataset.statusFilterDelegated = '1';
+  document.body.addEventListener('click', (ev)=>{
+    const btn = ev.target.closest('[data-status-filter]');
+    if(!btn) return;
+    const card = btn.closest('[data-status-scope]');
+    const scope = card?.dataset?.statusScope;
+    if(!scope) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    setStatusFilter(scope, btn.dataset.statusFilter || 'all');
+    render();
+  });
+}
+
 function render(){
+  bindStatusFilterDelegated();
   bindHeaderShortcuts();
   updateHeaderIdentity();
   if(currentView === 'home') renderHome();
@@ -1104,14 +1123,48 @@ function getStatusFilter(scope){
 function setStatusFilter(scope, value){
   const allowed = STATUS_FILTERS.some(f => f.key === value) ? value : 'all';
   localStorage.setItem(`meu-album-copa-status-filter-${scope}`, allowed);
+  if(allowed !== 'missing') clearPreservedMissing(scope);
 }
-function stickerMatchesStatusFilter(item, filter){
+
+const PRESERVED_MISSING_BY_SCOPE = {
+  album: new Set(),
+  quick: new Set()
+};
+
+function scopeForCurrentView(){
+  if(currentView === 'quick') return 'quick';
+  if(currentView === 'album') return 'album';
+  return null;
+}
+function preserveMissingVisualIfNeeded(id, beforeQty, afterQty){
+  const scope = scopeForCurrentView();
+  if(!scope) return;
+  if(getStatusFilter(scope) !== 'missing') return;
+  if(Number(beforeQty || 0) === 0 && Number(afterQty || 0) > 0){
+    PRESERVED_MISSING_BY_SCOPE[scope]?.add(id);
+  }
+}
+function isPreservedMissing(scope, id){
+  return !!PRESERVED_MISSING_BY_SCOPE[scope]?.has(id);
+}
+function clearPreservedMissing(scope){
+  if(scope && PRESERVED_MISSING_BY_SCOPE[scope]){
+    PRESERVED_MISSING_BY_SCOPE[scope].clear();
+  }
+}
+function clearPreservedMissingWhenLeaving(nextView){
+  if(nextView !== 'album') clearPreservedMissing('album');
+  if(nextView !== 'quick') clearPreservedMissing('quick');
+}
+
+function stickerMatchesStatusFilter(item, filter, scope=null){
   const q = qty(item.id);
-  if(filter === 'missing') return q === 0;
+  if(filter === 'missing') return q === 0 || (scope && isPreservedMissing(scope, item.id));
   if(filter === 'owned') return q > 0;
   if(filter === 'duplicates') return q > 1;
   return true;
 }
+
 function renderStatusFilter(scope){
   const active = getStatusFilter(scope);
   return `<div class="status-filter-card" data-status-scope="${escapeAttr(scope)}">
@@ -1321,7 +1374,16 @@ function bindStickerActions(ctx=document){
   });
 }
 
+
+function quickStatusMatches(item){
+  return stickerMatchesStatusFilter(item, getStatusFilter('quick'), 'quick');
+}
+function albumStatusMatches(item){
+  return stickerMatchesStatusFilter(item, getStatusFilter('album'), 'album');
+}
+
 function renderQuickView(){
+  const quickStatusFilter = getStatusFilter('quick');
   const groups = [...new Set(window.ALBUM_DATA.teams.map(t => t.group))];
   const helpOpen = localStorage.getItem(QUICK_HELP_KEY) === '1';
   $('#view-quick').innerHTML = `
@@ -1385,6 +1447,8 @@ function renderQuickView(){
   });
   updateQuickSortButton();
   renderQuickSections();
+
+  bindStatusFilter('quick');
 }
 
 function renderQuickSections(){
