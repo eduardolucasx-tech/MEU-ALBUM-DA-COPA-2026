@@ -1,0 +1,1 @@
+v1.7.12: correção cirúrgica para eventos duplicados na aba Álbum. Cada botão/figurinha só recebe listener uma vez. Preserva a base v1.7.10 enviada.
