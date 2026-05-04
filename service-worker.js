@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1711-final';
+const CACHE='meu-album-copa-v1-7-11-safe-hotfix';
 const APP_SHELL=[
   './',
   './index.html',

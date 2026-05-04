@@ -1,0 +1,1 @@
+v1.7.11 safe hotfix criado em cima da v1.7.10 real. Não substitui setQty/addQty; só protege chamadas de incremento/decremento para usar quantidade atual.
