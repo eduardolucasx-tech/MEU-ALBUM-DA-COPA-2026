@@ -1,4 +1,4 @@
-const CACHE='meu-album-copa-v1-7-18-safe-filtro-grade';
+const CACHE='meu-album-copa-v1-7-19-botoes-filtro-existente';
 const APP_SHELL=[
   './',
   './index.html',

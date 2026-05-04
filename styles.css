@@ -4060,7 +4060,12 @@ button.brand-logo,
 }
 
 
-/* v1.7.18 - filtro seguro */
+/* v1.7.19 - botões conectados aos filtros existentes */
+.status-filter-btn{
+  touch-action:manipulation;
+  user-select:none;
+  -webkit-user-select:none;
+}
 .status-filter-btn.active{
   background:linear-gradient(135deg,var(--gold),#f5d978);
   color:#111;

@@ -14,9 +14,9 @@ function safeToast(message){
 }
 
 /* Meu Álbum da Copa 2026 — v1.0 clean */
-const VERSION = '1.7.18-safe-filtro-grade';
-const VERSION_LABEL = 'v1.7.18';
-const VERSION_CHANGE = 'Correção segura do filtro de status: aplica o filtro nos quadradinhos do Rápido e do Álbum sem alterar a estrutura da Home.';
+const VERSION = '1.7.19-botoes-usam-filtro-existente';
+const VERSION_LABEL = 'v1.7.19';
+const VERSION_CHANGE = 'Correção segura: botões Todas, Faltantes, Tenho e Repetidas agora acionam os filtros internos já existentes no Álbum e no Rápido.';
 const STORAGE_KEY = 'meu-album-copa-2026-v1-state';
 const LEGACY_KEYS = ['checklist-mundial-state-v6','checklist-mundial-state-v5','checklist-mundial-state-v4'];
 const CLOUD_COLLECTION = 'meu_album_copa_v1_users';
@@ -910,8 +910,9 @@ function initSwipeNavigation(){
 
 
 function render(){
-  bindStatusFilterGlobal();
-  bindStatusFilterDelegated();
+  bindStatusFilterBridge();
+  
+  
   bindHeaderShortcuts();
   updateHeaderIdentity();
   if(currentView === 'home') renderHome();
@@ -1152,38 +1153,51 @@ function stickerMatchesStatusFilter(item, filter, scope=null){
 }
 
 
-function bindStatusFilterGlobal(){
-  if(document.body.dataset.statusFilterGlobal === '1') return;
-  document.body.dataset.statusFilterGlobal = '1';
 
-  document.body.addEventListener('pointerup', (ev)=>{
+
+function statusFilterToNativeValue(value){
+  if(value === 'all') return '';
+  if(value === 'duplicates') return 'duplicate';
+  return value || '';
+}
+function nativeStatusToButtonValue(value){
+  if(value === 'duplicate') return 'duplicates';
+  return value || 'all';
+}
+function applyStatusFilterBridge(scope, filter){
+  const safeFilter = STATUS_FILTERS.some(f=>f.key === filter) ? filter : 'all';
+  setStatusFilter(scope, safeFilter);
+
+  const nativeValue = statusFilterToNativeValue(safeFilter);
+
+  if(scope === 'quick'){
+    const select = $('#quickStatusFilter');
+    if(select) select.value = nativeValue;
+    if(typeof renderQuickSections === 'function') renderQuickSections();
+  }else{
+    const select = $('#statusFilter');
+    if(select) select.value = nativeValue;
+    if(typeof updateKpiActions === 'function') updateKpiActions();
+    if(typeof renderTeamList === 'function') renderTeamList();
+  }
+
+  $$(`[data-status-scope="${scope}"] [data-status-filter]`).forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.statusFilter === safeFilter);
+  });
+}
+function bindStatusFilterBridge(){
+  if(document.body.dataset.statusFilterBridge === '1') return;
+  document.body.dataset.statusFilterBridge = '1';
+
+  document.body.addEventListener('click', ev=>{
     const btn = ev.target.closest('[data-status-filter]');
     if(!btn) return;
-
-    const wrapper = btn.closest('[data-status-scope]');
-    const scope = wrapper?.dataset?.statusScope || (currentView === 'quick' ? 'quick' : 'album');
-    const filter = btn.dataset.statusFilter || 'all';
-
+    const wrap = btn.closest('[data-status-scope]');
+    const scope = wrap?.dataset?.statusScope || (currentView === 'quick' ? 'quick' : 'album');
     ev.preventDefault();
     ev.stopPropagation();
-
-    setStatusFilter(scope, filter);
-
-    // Atualiza visual imediatamente antes do render.
-    $$(`[data-status-scope="${scope}"] [data-status-filter]`).forEach(b=>{
-      b.classList.toggle('active', b.dataset.statusFilter === filter);
-    });
-
-    render();
+    applyStatusFilterBridge(scope, btn.dataset.statusFilter || 'all');
   }, true);
-}
-
-
-function currentScopeStatusFilter(scope){
-  return getStatusFilter(scope || (currentView === 'quick' ? 'quick' : 'album'));
-}
-function shouldRenderStickerInScope(item, scope){
-  return stickerMatchesStatusFilter(item, currentScopeStatusFilter(scope), scope);
 }
 
 function renderStatusFilter(scope){
@@ -1201,6 +1215,7 @@ function bindStatusFilter(scope){
     btn.classList.toggle('active', btn.dataset.statusFilter === active);
   });
 }
+
 
 function statusFilterSummary(scope, items){
   const filter = getStatusFilter(scope);
@@ -1455,7 +1470,11 @@ function renderQuickView(){
 
   const sync = () => renderQuickSections();
   $('#quickGroupFilter')?.addEventListener('change', sync);
-  $('#quickStatusFilter')?.addEventListener('change', sync);
+  $('#quickStatusFilter')?.addEventListener('change', ()=>{
+    setStatusFilter('quick', nativeStatusToButtonValue($('#quickStatusFilter')?.value || ''));
+    sync();
+    bindStatusFilter('quick');
+  });
   $('#quickSearch')?.addEventListener('input', sync);
   $('#quickSortModeBtn')?.addEventListener('click', () => {
     albumSortMode = albumSortMode === 'album' ? 'alpha' : 'album';
